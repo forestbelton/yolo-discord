@@ -59,3 +59,17 @@ class Order:
     security_name: str
     security_price: moneyed.Money
     quantity: int
+
+
+@dataclasses.dataclass
+class OwnedSecurity:
+    name: str
+    quantity: int
+    total_price_paid: moneyed.Money
+
+
+@dataclasses.dataclass
+class PortfolioEntry:
+    security_name: str
+    quantity: int
+    return_rate: float

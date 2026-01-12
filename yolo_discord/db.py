@@ -23,6 +23,9 @@ class Database(abc.ABC):
     async def create_order(self, request: types.OrderInsert) -> types.Order: ...
 
     @abc.abstractmethod
+    async def get_owned_securities(self, user_id: str) -> list[types.OwnedSecurity]: ...
+
+    @abc.abstractmethod
     async def commit(self) -> None: ...
 
     @abc.abstractmethod
@@ -143,6 +146,40 @@ class DatabaseImpl(Database):
             security_price=request.security_price,
             quantity=request.quantity,
         )
+
+    async def get_owned_securities(self, user_id: str) -> list[types.OwnedSecurity]:
+        rows = list(
+            await self.connection.execute_fetchall(
+                """
+                SELECT
+                    security_name,
+                    SUM(
+                        quantity * (
+                            CASE WHEN type = 'BUY' THEN 1
+                            ELSE -1 END
+                        )
+                    ) AS quantity,
+                    SUM(
+                        security_price_cents * quantity * (
+                            CASE WHEN type = 'BUY' THEN 1
+                            ELSE -1 END
+                        )
+                    ) AS total_price_paid
+                FROM orders
+                WHERE user_id = :user_id
+                GROUP BY security_name
+                """,
+                {"user_id": user_id},
+            )
+        )
+        return [
+            types.OwnedSecurity(
+                name=row["security_name"],
+                quantity=row["quantity"],
+                total_price_paid=from_cents(row["total_price_paid"]),
+            )
+            for row in rows
+        ]
 
     async def commit(self) -> None:
         await self.connection.commit()

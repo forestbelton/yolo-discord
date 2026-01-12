@@ -3,7 +3,7 @@ from discord.ext import commands
 from yolo_discord.db import DatabaseImpl
 from yolo_discord.service.security import SecurityService, SecurityServiceImpl
 from yolo_discord.service.yolo import YoloService, YoloServiceImpl
-from yolo_discord.types import CreateOrderRequest
+from yolo_discord.types import CreateOrderRequest, PortfolioEntry
 
 
 class CommandsCog(commands.Cog):
@@ -15,7 +15,7 @@ class CommandsCog(commands.Cog):
     @commands.command()
     async def balance(self, ctx: commands.Context["Bot"]) -> None:
         balance = await self.bot.yolo_service.get_balance(str(ctx.author.id))
-        await ctx.reply(f"You have a balance of {balance}")
+        await ctx.reply(f"You have {balance} of available funds.")
 
     @commands.command()
     async def buy(self, ctx: commands.Context["Bot"]) -> None:
@@ -51,7 +51,41 @@ class CommandsCog(commands.Cog):
         if security_price is None:
             await ctx.reply(f"Could not fetch price of ${args[1]}.")
         else:
-            await ctx.reply(f"The price of ${args[1]} is {security_price}.")
+            await ctx.reply(f"The price of ${args[1]} is {security_price} per share.")
+
+    @commands.command()
+    async def portfolio(self, ctx: commands.Context["Bot"]) -> None:
+        try:
+            portfolio = await self.bot.yolo_service.get_portfolio(str(ctx.author.id))
+            if len(portfolio) == 0:
+                await ctx.reply("You have no securities in your portfolio.")
+                return
+            entries = [format_entry(entry) for entry in portfolio]
+            await ctx.reply(
+                f"""Your current portfolio:
+```
+ Name | Amount | Return
+------|--------|--------
+{"\n".join(entries)}
+------|--------|--------
+```"""
+            )
+
+        except Exception as exc:
+            print(f"could not calculate portfolio: {exc}")
+            await ctx.reply("Could not calculate portfolio.")
+
+
+def format_entry(entry: PortfolioEntry) -> str:
+    return_rate = entry.return_rate
+    if abs(return_rate - 0) < 0.001:
+        return_rate = 0
+    sign = ""
+    if entry.return_rate >= 0:
+        sign = "+"
+    name = entry.security_name.rjust(4, " ")
+    quantity = str(entry.quantity).rjust(6, " ")
+    return f" {name} | {quantity} | {sign}{return_rate:.2f}%"
 
 
 class Bot(commands.Bot):

@@ -5,6 +5,8 @@ from yolo_discord.types import (
     Order,
     OrderInsert,
     OrderType,
+    OwnedSecurity,
+    PortfolioEntry,
     TransactionInsert,
     TransactionType,
 )
@@ -16,6 +18,7 @@ from yolo_discord.service.security import SecurityService
 class YoloService(abc.ABC):
     async def get_balance(self, user_id: str) -> Money: ...
     async def buy(self, request: CreateOrderRequest) -> Order: ...
+    async def get_portfolio(self, user_id: str) -> list[PortfolioEntry]: ...
 
 
 class YoloServiceImpl(YoloService):
@@ -85,3 +88,32 @@ class YoloServiceImpl(YoloService):
         except:
             await self.database.rollback()
             raise
+
+    async def get_portfolio(self, user_id: str) -> list[PortfolioEntry]:
+        await self.database.create_user(user_id)
+        owned_securities = await self.database.get_owned_securities(user_id)
+        current_prices = await self.security_service.get_security_prices(
+            [security.name for security in owned_securities]
+        )
+        if current_prices is None:
+            raise Exception("could not look up security prices")
+        return [
+            PortfolioEntry(
+                security_name=security.name,
+                quantity=security.quantity,
+                return_rate=calculate_return_rate(
+                    security, current_prices[security.name]
+                ),
+            )
+            for security in owned_securities
+        ]
+
+
+def calculate_return_rate(security: OwnedSecurity, current_price: Money) -> float:
+    total_price_paid = security.total_price_paid.get_amount_in_sub_unit()
+    current_total_price = (security.quantity * current_price).get_amount_in_sub_unit()
+    if total_price_paid < current_total_price:
+        rate = 1 - current_total_price / total_price_paid
+    else:
+        rate = -(1 - total_price_paid / current_total_price)
+    return round(rate * 100, 2)
