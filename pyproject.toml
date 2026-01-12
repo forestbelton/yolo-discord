@@ -4,4 +4,9 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "aiosqlite>=0.22.1",
+    "discord-py>=2.6.4",
+    "py-moneyed>=3.0",
+    "yoyo-migrations>=9.0.0",
+]
