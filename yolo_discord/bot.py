@@ -1,5 +1,7 @@
 import discord
-from discord.ext import commands
+from datetime import time
+from discord.ext import commands, tasks
+from logging import Logger, getLogger
 from yolo_discord.db import DatabaseImpl
 from yolo_discord.service.security import SecurityService, SecurityServiceImpl
 from yolo_discord.service.yolo import YoloService, YoloServiceImpl
@@ -14,11 +16,13 @@ class CommandsCog(commands.Cog):
 
     @commands.command()
     async def balance(self, ctx: commands.Context["Bot"]) -> None:
+        self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !balance")
         balance = await self.bot.yolo_service.get_balance(str(ctx.author.id))
         await ctx.reply(f"You have {balance} of available funds.")
 
     @commands.command()
     async def buy(self, ctx: commands.Context["Bot"]) -> None:
+        self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !buy")
         args = ctx.message.content.split(" ")
         if len(args) != 3:
             await ctx.reply("Incorrect usage. Should be: !order {security} {quantity}")
@@ -43,6 +47,7 @@ class CommandsCog(commands.Cog):
 
     @commands.command()
     async def price(self, ctx: commands.Context["Bot"]) -> None:
+        self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !price")
         args = ctx.message.content.split(" ")
         if len(args) != 2:
             await ctx.reply("Incorrect usage. Should be !price {security}")
@@ -55,6 +60,7 @@ class CommandsCog(commands.Cog):
 
     @commands.command()
     async def portfolio(self, ctx: commands.Context["Bot"]) -> None:
+        self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !portfolio")
         try:
             portfolio = await self.bot.yolo_service.get_portfolio(str(ctx.author.id))
             if len(portfolio) == 0:
@@ -90,22 +96,39 @@ def format_entry(entry: PortfolioEntry) -> str:
 
 class Bot(commands.Bot):
     finnhub_api_key: str
+    logger: Logger
 
     yolo_service: YoloService
     security_service: SecurityService
 
     def __init__(self, finnhub_api_key: str) -> None:
-        self.finnhub_api_key = finnhub_api_key
-
         intents = discord.Intents.default()
         intents.message_content = True
         super().__init__(command_prefix="!", intents=intents)
+        self.finnhub_api_key = finnhub_api_key
+        logger = getLogger("yolo-discord")
+        logger.parent = getLogger("discord")
+        self.logger = logger
 
     async def setup_hook(self) -> None:
         database = await DatabaseImpl.create("yolo.sqlite3")
         self.security_service = SecurityServiceImpl(self.finnhub_api_key)
         self.yolo_service = YoloServiceImpl(
+            logger=self.logger,
             database=database,
             security_service=self.security_service,
         )
         await self.add_cog(CommandsCog(self))
+
+    @tasks.loop(time=time(hour=0, minute=0))
+    async def update_allowances(self) -> None:
+        await self.yolo_service.update_allowances()
+
+    @tasks.loop(time=time(hour=0, minute=0))
+    async def take_portfolio_snapshots(self) -> None:
+        print("taking portfolio snapshots")
+
+    async def on_ready(self) -> None:
+        self.logger.info("starting tasks")
+        self.update_allowances.start()
+        self.take_portfolio_snapshots.start()

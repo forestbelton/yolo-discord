@@ -1,4 +1,5 @@
 import abc
+from logging import Logger
 from moneyed import Money
 from yolo_discord.types import (
     CreateOrderRequest,
@@ -19,13 +20,18 @@ class YoloService(abc.ABC):
     async def get_balance(self, user_id: str) -> Money: ...
     async def buy(self, request: CreateOrderRequest) -> Order: ...
     async def get_portfolio(self, user_id: str) -> list[PortfolioEntry]: ...
+    async def update_allowances(self) -> None: ...
 
 
 class YoloServiceImpl(YoloService):
+    logger: Logger
     database: Database
     security_service: SecurityService
 
-    def __init__(self, database: Database, security_service: SecurityService) -> None:
+    def __init__(
+        self, logger: Logger, database: Database, security_service: SecurityService
+    ) -> None:
+        self.logger = logger
         self.database = database
         self.security_service = security_service
 
@@ -107,6 +113,9 @@ class YoloServiceImpl(YoloService):
             )
             for security in owned_securities
         ]
+
+    async def update_allowances(self) -> None:
+        pass
 
 
 def calculate_return_rate(security: OwnedSecurity, current_price: Money) -> float:
