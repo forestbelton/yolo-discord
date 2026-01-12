@@ -1,15 +1,15 @@
 import abc
 import aiosqlite
 import datetime
-import decimal
 import moneyed
 
 from yolo_discord import types
+from yolo_discord.util import from_cents
 
 
 class Database(abc.ABC):
     @abc.abstractmethod
-    async def create_user(self, user_id: str) -> None: ...
+    async def create_user(self, user_id: str) -> bool: ...
 
     @abc.abstractmethod
     async def create_transaction(
@@ -40,11 +40,12 @@ class DatabaseImpl(Database):
     async def create(url: str) -> "DatabaseImpl":
         return DatabaseImpl(await aiosqlite.connect(url))
 
-    async def create_user(self, user_id: str) -> None:
-        await self.connection.execute(
+    async def create_user(self, user_id: str) -> bool:
+        cursor = await self.connection.execute(
             "INSERT OR IGNORE INTO discord_users (user_id) VALUES (:user_id)",
             {"user_id": user_id},
         )
+        return cursor.rowcount > 0
 
     async def create_transaction(
         self, request: types.TransactionInsert
@@ -100,8 +101,7 @@ class DatabaseImpl(Database):
         row = await cursor.fetchone()
         if row is None:
             raise Exception("could not get user balance")
-        amount = decimal.Decimal(row["balance_cents"]) / 100
-        return moneyed.Money(amount, "USD")
+        return from_cents(row["balance_cents"])
 
     async def create_order(self, request: types.OrderInsert) -> types.Order:
         cursor = await self.connection.execute(
@@ -109,12 +109,14 @@ class DatabaseImpl(Database):
             INSERT INTO orders (
                 user_id,
                 transaction_id,
+                type,
                 security_name,
                 security_price_cents,
                 quantity
             ) VALUES (
                 :user_id,
                 :transaction_id,
+                :type,
                 :security_name,
                 :security_price_cents,
                 :quantity
@@ -123,6 +125,7 @@ class DatabaseImpl(Database):
             {
                 "user_id": request.user_id,
                 "transaction_id": request.transaction_id,
+                "type": request.type.value,
                 "security_name": request.security_name,
                 "security_price_cents": request.security_price.get_amount_in_sub_unit(),
                 "quantity": request.quantity,
@@ -135,6 +138,7 @@ class DatabaseImpl(Database):
             created_at=datetime.datetime.now(),
             user_id=request.user_id,
             transaction_id=request.transaction_id,
+            type=request.type,
             security_name=request.security_name,
             security_price=request.security_price,
             quantity=request.quantity,

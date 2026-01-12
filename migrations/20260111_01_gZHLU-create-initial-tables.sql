@@ -23,6 +23,7 @@ CREATE TABLE orders(
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   user_id TEXT NOT NULL REFERENCES discord_users(user_id),
   transaction_id INTEGER NOT NULL REFERENCES transactions(id),
+  type TEXT NOT NULL CHECK (type in ('BUY', 'SELL')),
   security_name TEXT NOT NULL,
   security_price_cents INTEGER NOT NULL,
   quantity INTEGER NOT NULL

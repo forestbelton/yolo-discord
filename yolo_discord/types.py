@@ -9,6 +9,11 @@ class TransactionType(enum.Enum):
     DEBIT = "DEBIT"
 
 
+class OrderType(enum.Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+
+
 @dataclasses.dataclass
 class TransactionInsert:
     user_id: str
@@ -31,6 +36,7 @@ class Transaction:
 class OrderInsert:
     user_id: str
     transaction_id: int
+    type: OrderType
     security_name: str
     security_price: moneyed.Money
     quantity: int
@@ -49,6 +55,7 @@ class Order:
     created_at: datetime.datetime
     user_id: str
     transaction_id: int
+    type: OrderType
     security_name: str
     security_price: moneyed.Money
     quantity: int

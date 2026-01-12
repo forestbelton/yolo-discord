@@ -18,7 +18,7 @@ class CommandsCog(commands.Cog):
         await ctx.reply(f"You have a balance of {balance}")
 
     @commands.command()
-    async def order(self, ctx: commands.Context["Bot"]) -> None:
+    async def buy(self, ctx: commands.Context["Bot"]) -> None:
         args = ctx.message.content.split(" ")
         if len(args) != 3:
             await ctx.reply("Incorrect usage. Should be: !order {security} {quantity}")
@@ -28,14 +28,18 @@ class CommandsCog(commands.Cog):
         except:
             await ctx.reply("Incorrect usage. Should be: !order {security} {quantity}")
             return
-        order = await self.bot.service.create_order(
-            CreateOrderRequest(
-                user_id=str(ctx.author.id),
-                security_name=args[1],
-                quantity=quantity,
+        try:
+            order = await self.bot.service.buy(
+                CreateOrderRequest(
+                    user_id=str(ctx.author.id),
+                    security_name=args[1],
+                    quantity=quantity,
+                )
             )
-        )
-        await ctx.reply(f"{order}")
+            await ctx.reply(f"{order}")
+        except Exception as exc:
+            print(f"could not place order: {exc}")
+            await ctx.reply("The order could not be placed.")
 
 
 class Bot(commands.Bot):

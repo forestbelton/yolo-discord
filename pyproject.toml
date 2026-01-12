@@ -8,5 +8,6 @@ dependencies = [
     "aiosqlite>=0.22.1",
     "discord-py>=2.6.4",
     "py-moneyed>=3.0",
+    "python-dotenv>=1.2.1",
     "yoyo-migrations>=9.0.0",
 ]

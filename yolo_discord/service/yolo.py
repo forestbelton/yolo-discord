@@ -4,16 +4,18 @@ from yolo_discord.types import (
     CreateOrderRequest,
     Order,
     OrderInsert,
+    OrderType,
     TransactionInsert,
     TransactionType,
 )
+from yolo_discord.config import get_config
 from yolo_discord.db import Database
 from yolo_discord.service.security import SecurityService
 
 
 class YoloService(abc.ABC):
     async def get_balance(self, user_id: str) -> Money: ...
-    async def create_order(self, request: CreateOrderRequest) -> Order: ...
+    async def buy(self, request: CreateOrderRequest) -> Order: ...
 
 
 class YoloServiceImpl(YoloService):
@@ -25,17 +27,18 @@ class YoloServiceImpl(YoloService):
         self.security_service = security_service
 
     async def get_balance(self, user_id: str) -> Money:
+        await self.create_user(user_id)
         return await self.database.get_user_balance(user_id)
 
-    async def create_order(self, request: CreateOrderRequest) -> Order:
+    async def buy(self, request: CreateOrderRequest) -> Order:
+        await self.create_user(request.user_id)
         try:
-            await self.database.create_user(request.user_id)
             balance = await self.database.get_user_balance(request.user_id)
             security_price = await self.security_service.get_security_price(
                 request.security_name
             )
             debit_amount = security_price * request.quantity
-            if debit_amount < balance:
+            if debit_amount > balance:
                 raise Exception("not enough money for order")
             debit = await self.database.create_transaction(
                 TransactionInsert(
@@ -49,6 +52,7 @@ class YoloServiceImpl(YoloService):
                 OrderInsert(
                     user_id=request.user_id,
                     transaction_id=debit.id,
+                    type=OrderType.BUY,
                     security_name=request.security_name,
                     security_price=security_price,
                     quantity=request.quantity,
@@ -56,6 +60,24 @@ class YoloServiceImpl(YoloService):
             )
             await self.database.commit()
             return order
+        except:
+            await self.database.rollback()
+            raise
+
+    async def create_user(self, user_id: str) -> None:
+        try:
+            is_new_user = await self.database.create_user(user_id)
+            if is_new_user:
+                config = get_config()
+                await self.database.create_transaction(
+                    TransactionInsert(
+                        user_id=user_id,
+                        type=TransactionType.CREDIT,
+                        amount=config.starting_balance,
+                        comment="Initial credit",
+                    )
+                )
+                await self.database.commit()
         except:
             await self.database.rollback()
             raise
