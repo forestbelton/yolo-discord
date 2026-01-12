@@ -37,6 +37,10 @@ class YoloServiceImpl(YoloService):
             security_price = await self.security_service.get_security_price(
                 request.security_name
             )
+            if security_price is None:
+                raise Exception(
+                    f"Could not fetch price of security ${request.security_name}"
+                )
             debit_amount = security_price * request.quantity
             if debit_amount > balance:
                 raise Exception("not enough money for order")
