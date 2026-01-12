@@ -55,17 +55,21 @@ class CommandsCog(commands.Cog):
 
 
 class Bot(commands.Bot):
+    alphavantage_api_key: str
+
     yolo_service: YoloService
     security_service: SecurityService
 
-    def __init__(self) -> None:
+    def __init__(self, alphavantage_api_key: str) -> None:
+        self.alphavantage_api_key = alphavantage_api_key
+
         intents = discord.Intents.default()
         intents.message_content = True
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self) -> None:
         database = await DatabaseImpl.create("yolo.sqlite3")
-        self.security_service = SecurityServiceImpl()
+        self.security_service = SecurityServiceImpl(self.alphavantage_api_key)
         self.yolo_service = YoloServiceImpl(
             database=database,
             security_service=self.security_service,

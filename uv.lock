@@ -400,6 +400,7 @@ name = "yolo-discord"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "aiosqlite" },
     { name = "discord-py" },
     { name = "py-moneyed" },
@@ -409,6 +410,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp", specifier = ">=3.13.3" },
     { name = "aiosqlite", specifier = ">=0.22.1" },
     { name = "discord-py", specifier = ">=2.6.4" },
     { name = "py-moneyed", specifier = ">=3.0" },
