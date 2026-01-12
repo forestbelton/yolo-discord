@@ -55,13 +55,13 @@ class CommandsCog(commands.Cog):
 
 
 class Bot(commands.Bot):
-    alphavantage_api_key: str
+    finnhub_api_key: str
 
     yolo_service: YoloService
     security_service: SecurityService
 
-    def __init__(self, alphavantage_api_key: str) -> None:
-        self.alphavantage_api_key = alphavantage_api_key
+    def __init__(self, finnhub_api_key: str) -> None:
+        self.finnhub_api_key = finnhub_api_key
 
         intents = discord.Intents.default()
         intents.message_content = True
@@ -69,7 +69,7 @@ class Bot(commands.Bot):
 
     async def setup_hook(self) -> None:
         database = await DatabaseImpl.create("yolo.sqlite3")
-        self.security_service = SecurityServiceImpl(self.alphavantage_api_key)
+        self.security_service = SecurityServiceImpl(self.finnhub_api_key)
         self.yolo_service = YoloServiceImpl(
             database=database,
             security_service=self.security_service,
