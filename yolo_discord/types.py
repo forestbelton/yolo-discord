@@ -71,5 +71,6 @@ class OwnedSecurity:
 @dataclasses.dataclass
 class PortfolioEntry:
     security_name: str
+    balance: moneyed.Money
     quantity: int
     return_rate: float

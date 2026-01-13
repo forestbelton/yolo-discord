@@ -113,6 +113,7 @@ class YoloServiceImpl(YoloService):
         return [
             PortfolioEntry(
                 security_name=security.name,
+                balance=security.quantity * current_prices[security.name],
                 quantity=security.quantity,
                 return_rate=calculate_return_rate(
                     security, current_prices[security.name]

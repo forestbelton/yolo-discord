@@ -6,6 +6,7 @@ from yolo_discord.db import DatabaseImpl
 from yolo_discord.service.security import SecurityService, SecurityServiceImpl
 from yolo_discord.service.yolo import YoloService, YoloServiceImpl
 from yolo_discord.types import CreateOrderRequest, PortfolioEntry
+from yolo_discord.util import format_table
 
 
 class CommandsCog(commands.Cog):
@@ -66,14 +67,22 @@ class CommandsCog(commands.Cog):
             if len(portfolio) == 0:
                 await ctx.reply("You have no securities in your portfolio.")
                 return
-            entries = [format_entry(entry) for entry in portfolio]
+
+            table = format_table(
+                ["Name", "Amount", "Balance", "Return"],
+                {
+                    "Name": lambda entry: entry.security_name,
+                    "Amount": lambda entry: str(entry.quantity),
+                    "Balance": lambda entry: str(entry.balance),
+                    "Return": format_return_rate,
+                },
+                portfolio,
+            )
+
             await ctx.reply(
                 f"""Your current portfolio:
 ```
- Name | Amount | Return
-------|--------|--------
-{"\n".join(entries)}
-------|--------|--------
+{table}
 ```"""
             )
 
@@ -82,16 +91,14 @@ class CommandsCog(commands.Cog):
             await ctx.reply("Could not calculate portfolio.")
 
 
-def format_entry(entry: PortfolioEntry) -> str:
+def format_return_rate(entry: PortfolioEntry) -> str:
     return_rate = entry.return_rate
     if abs(return_rate - 0) < 0.001:
         return_rate = 0
     sign = ""
     if entry.return_rate >= 0:
         sign = "+"
-    name = entry.security_name.rjust(4, " ")
-    quantity = str(entry.quantity).rjust(6, " ")
-    return f" {name} | {quantity} | {sign}{return_rate:.2f}%"
+    return f"{sign}{return_rate:.2f}%"
 
 
 class Bot(commands.Bot):
