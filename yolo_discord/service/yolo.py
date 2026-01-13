@@ -25,6 +25,9 @@ class YoloService(abc.ABC):
     async def add_allowance(self, user_id: str) -> None: ...
 
 
+class NotEnoughMoneyException(Exception): ...
+
+
 class YoloServiceImpl(YoloService):
     logger: Logger
     database: Database
@@ -54,7 +57,7 @@ class YoloServiceImpl(YoloService):
                 )
             debit_amount = security_price * request.quantity
             if debit_amount > balance:
-                raise Exception("not enough money for order")
+                raise NotEnoughMoneyException()
             debit = await self.database.create_transaction(
                 TransactionInsert(
                     user_id=request.user_id,

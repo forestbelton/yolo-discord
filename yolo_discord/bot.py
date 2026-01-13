@@ -4,7 +4,11 @@ from discord.ext import commands, tasks
 from logging import Logger, getLogger
 from yolo_discord.db import DatabaseImpl
 from yolo_discord.service.security import SecurityService, SecurityServiceImpl
-from yolo_discord.service.yolo import YoloService, YoloServiceImpl
+from yolo_discord.service.yolo import (
+    NotEnoughMoneyException,
+    YoloService,
+    YoloServiceImpl,
+)
 from yolo_discord.types import CreateOrderRequest, PortfolioEntry
 from yolo_discord.util import format_table
 
@@ -42,8 +46,10 @@ class CommandsCog(commands.Cog):
                 )
             )
             await ctx.reply(f"{order}")
+        except NotEnoughMoneyException:
+            await ctx.reply("Insufficient available funds to place order.")
         except Exception as exc:
-            print(f"could not place order: {exc}")
+            self.bot.logger.error("Could not place order", exc_info=exc)
             await ctx.reply("The order could not be placed.")
 
     @commands.command()
