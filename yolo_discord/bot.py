@@ -10,10 +10,10 @@ from yolo_discord.service.yolo import (
     YoloService,
     YoloServiceImpl,
 )
+from yolo_discord.table import Table, format_tables
 from yolo_discord.types import CreateOrderRequest
 from yolo_discord.util import (
     format_return_rate,
-    Table,
     calculate_return_rate,
     sum_money,
 )
@@ -144,10 +144,9 @@ class CommandsCog(commands.Cog):
                         ),
                     ),
                 ],
+                include_header=False,
             )
-            await ctx.reply(
-                f"```{security_table.format()}\n{summary_table.format(include_header=False)}```"
-            )
+            await ctx.reply(f"```{format_tables(security_table, summary_table)}```")
         except Exception as exc:
             self.bot.logger.error("Could not calculate portfolio", exc_info=exc)
             await ctx.reply("Could not calculate portfolio.")
