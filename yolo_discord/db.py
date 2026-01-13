@@ -247,7 +247,11 @@ class DatabaseImpl(Database):
     async def create_portfolio_snapshot(
         self, user_id: str, portfolio: list[types.PortfolioEntry]
     ) -> None:
-        data = json.dumps(portfolio, cls=PortfolioEntryEncoder)
+        data = json.dumps(
+            portfolio,
+            cls=PortfolioEntryEncoder,
+            separators=(",", ":"),
+        )
         await self.connection.execute(
             """
             INSERT INTO portfolio_snapshots (

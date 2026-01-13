@@ -1,5 +1,5 @@
 import discord
-from datetime import time
+from datetime import datetime, time
 from discord.ext import commands, tasks
 from logging import Logger, getLogger
 from yolo_discord.db import DatabaseImpl
@@ -10,8 +10,8 @@ from yolo_discord.service.yolo import (
     YoloService,
     YoloServiceImpl,
 )
-from yolo_discord.types import CreateOrderRequest, PortfolioEntry
-from yolo_discord.util import format_table
+from yolo_discord.types import CreateOrderRequest
+from yolo_discord.util import format_table, format_return_rate
 
 
 class CommandsCog(commands.Cog):
@@ -121,16 +121,6 @@ class CommandsCog(commands.Cog):
             await ctx.reply("Could not calculate portfolio.")
 
 
-def format_return_rate(entry: PortfolioEntry) -> str:
-    return_rate = entry.return_rate
-    if abs(return_rate - 0) < 0.001:
-        return_rate = 0
-    sign = ""
-    if entry.return_rate >= 0:
-        sign = "+"
-    return f"{sign}{return_rate:.2f}%"
-
-
 class Bot(commands.Bot):
     finnhub_api_key: str
     logger: Logger
@@ -157,11 +147,11 @@ class Bot(commands.Bot):
         )
         await self.add_cog(CommandsCog(self))
 
-    @tasks.loop(time=time(hour=0, minute=0))
+    @tasks.loop(time=time(hour=0, minute=0, tzinfo=datetime.now().astimezone().tzinfo))
     async def update_allowances(self) -> None:
         await self.yolo_service.update_allowances()
 
-    @tasks.loop(time=time(hour=0, minute=0))
+    @tasks.loop(time=time(hour=0, minute=0, tzinfo=datetime.now().astimezone().tzinfo))
     async def take_portfolio_snapshots(self) -> None:
         await self.yolo_service.take_portfolio_snapshots()
 

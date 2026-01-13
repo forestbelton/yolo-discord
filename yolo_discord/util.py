@@ -10,6 +10,16 @@ def from_cents(cents: int) -> Money:
     return Money(amount, "USD")
 
 
+def format_return_rate(entry: PortfolioEntry) -> str:
+    return_rate = entry.return_rate
+    if abs(return_rate - 0) < 0.001:
+        return_rate = 0
+    sign = ""
+    if entry.return_rate >= 0:
+        sign = "+"
+    return f"{sign}{return_rate:.2f}%"
+
+
 def format_table[T](
     column_headers: list[str],
     formatters: dict[str, Callable[[T], str]],
