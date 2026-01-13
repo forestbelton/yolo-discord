@@ -6,7 +6,6 @@ from yolo_discord.types import (
     Order,
     OrderInsert,
     OrderType,
-    OwnedSecurity,
     PortfolioEntry,
     TransactionInsert,
     TransactionType,
@@ -14,6 +13,7 @@ from yolo_discord.types import (
 from yolo_discord.config import get_config
 from yolo_discord.db import Database
 from yolo_discord.service.security import SecurityService
+from yolo_discord.util import calculate_return_rate
 
 
 class YoloService(abc.ABC):
@@ -165,8 +165,10 @@ class YoloServiceImpl(YoloService):
                 security_name=security.name,
                 balance=security.quantity * current_prices[security.name],
                 quantity=security.quantity,
+                total_price_paid=security.total_price_paid,
                 return_rate=calculate_return_rate(
-                    security, current_prices[security.name]
+                    security.total_price_paid,
+                    security.quantity * current_prices[security.name],
                 ),
             )
             for security in owned_securities
@@ -208,13 +210,3 @@ class YoloServiceImpl(YoloService):
                 comment="Weekly allowance",
             )
         )
-
-
-def calculate_return_rate(security: OwnedSecurity, current_price: Money) -> float:
-    total_price_paid = security.total_price_paid.get_amount_in_sub_unit()
-    current_total_price = (security.quantity * current_price).get_amount_in_sub_unit()
-    if total_price_paid < current_total_price:
-        rate = 1 - current_total_price / total_price_paid
-    else:
-        rate = -(1 - total_price_paid / current_total_price)
-    return round(rate * 100, 2)

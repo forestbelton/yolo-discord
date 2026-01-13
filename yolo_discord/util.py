@@ -2,7 +2,7 @@ import json
 from dataclasses import dataclass
 from decimal import Decimal
 from moneyed import Money
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 from yolo_discord.types import PortfolioEntry
 
 
@@ -11,14 +11,29 @@ def from_cents(cents: int) -> Money:
     return Money(amount, "USD")
 
 
-def format_return_rate(entry: PortfolioEntry) -> str:
-    return_rate = entry.return_rate
+def format_return_rate(return_rate: float) -> str:
     if abs(return_rate - 0) < 0.001:
         return_rate = 0
     sign = ""
-    if entry.return_rate >= 0:
+    if return_rate >= 0:
         sign = "+"
     return f"{sign}{return_rate:.2f}%"
+
+
+def calculate_return_rate(paid_price: Money, current_price: Money) -> float:
+    paid = paid_price.get_amount_in_sub_unit()
+    if paid <= 0:
+        return 0
+    current = current_price.get_amount_in_sub_unit()
+    rate = (current - paid) / paid
+    return round(rate * 100, 2)
+
+
+def sum_money(moneys: Iterable[Money]) -> Money:
+    total = Money(0, "USD")
+    for money in moneys:
+        total += money
+    return total
 
 
 @dataclass
@@ -89,6 +104,7 @@ class PortfolioEntryEncoder(json.JSONEncoder):
                 "security_name": o.security_name,
                 "balance": o.balance.get_amount_in_sub_unit(),
                 "quantity": o.quantity,
+                "total_price_paid": o.total_price_paid.get_amount_in_sub_unit(),
                 "return_rate": o.return_rate,
             }
         return super().default(o)
@@ -109,6 +125,7 @@ class PortfolioEntryDecoder(json.JSONDecoder):
                 "security_name",
                 "balance",
                 "quantity",
+                "total_price_paid",
                 "return_rate",
             ]
         ):
@@ -116,6 +133,7 @@ class PortfolioEntryDecoder(json.JSONDecoder):
                 security_name=obj["security_name"],
                 balance=from_cents(obj["balance"]),
                 quantity=obj["quantity"],
+                total_price_paid=from_cents(obj["total_price_paid"]),
                 return_rate=obj["return_rate"],
             )
         return obj

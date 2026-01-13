@@ -11,7 +11,12 @@ from yolo_discord.service.yolo import (
     YoloServiceImpl,
 )
 from yolo_discord.types import CreateOrderRequest
-from yolo_discord.util import format_return_rate, Table
+from yolo_discord.util import (
+    format_return_rate,
+    Table,
+    calculate_return_rate,
+    sum_money,
+)
 
 
 class CommandsCog(commands.Cog):
@@ -103,14 +108,14 @@ class CommandsCog(commands.Cog):
         try:
             portfolio = await self.bot.yolo_service.get_portfolio(str(ctx.author.id))
             cash = await self.bot.yolo_service.get_balance(str(ctx.author.id))
-            total = sum([entry.balance for entry in portfolio])
+            total = sum_money(entry.balance for entry in portfolio)
             security_table = Table(
                 column_headers=["Name", "Amount", "Balance", "Return"],
                 formatters={
                     "Name": lambda entry: entry.security_name,
                     "Amount": lambda entry: str(entry.quantity),
                     "Balance": lambda entry: str(entry.balance),
-                    "Return": format_return_rate,
+                    "Return": lambda entry: format_return_rate(entry.return_rate),
                 },
                 data=portfolio,
             )
@@ -127,6 +132,17 @@ class CommandsCog(commands.Cog):
                 [
                     ("Available Funds", cash),
                     ("Total Assets", cash + total),
+                    (
+                        "Total Return",
+                        format_return_rate(
+                            calculate_return_rate(
+                                sum_money(
+                                    entry.total_price_paid for entry in portfolio
+                                ),
+                                total,
+                            )
+                        ),
+                    ),
                 ],
             )
             await ctx.reply(

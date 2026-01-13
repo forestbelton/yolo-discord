@@ -73,4 +73,5 @@ class PortfolioEntry:
     security_name: str
     balance: moneyed.Money
     quantity: int
+    total_price_paid: moneyed.Money
     return_rate: float
