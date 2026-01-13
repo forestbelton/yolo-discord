@@ -103,6 +103,7 @@ class CommandsCog(commands.Cog):
     @commands.command()
     async def portfolio(self, ctx: commands.Context["Bot"]) -> None:
         self.log_command(ctx)
+        await ctx.typing()
         try:
             portfolio = await self.bot.yolo_service.get_portfolio(str(ctx.author.id))
             cash = await self.bot.yolo_service.get_balance(str(ctx.author.id))
