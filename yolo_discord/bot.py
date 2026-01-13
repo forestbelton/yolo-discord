@@ -49,7 +49,6 @@ class CommandsCog(commands.Cog):
             await ctx.reply(
                 f"You bought {order.quantity} shares of ${order.security_name} at {order.security_price} per share."
             )
-            await ctx.reply(f"{order}")
         except NotEnoughMoneyException:
             await ctx.reply("Insufficient available funds to place order.")
         except Exception as exc:
