@@ -149,8 +149,11 @@ class YoloServiceImpl(YoloService):
             await self.database.rollback()
             raise
 
-    async def get_portfolio(self, user_id: str) -> list[PortfolioEntry]:
-        await self.create_user(user_id)
+    async def get_portfolio(
+        self, user_id: str, create_user: bool = True
+    ) -> list[PortfolioEntry]:
+        if create_user:
+            await self.create_user(user_id)
         owned_securities = await self.database.get_owned_securities(user_id)
         current_prices = await self.security_service.get_security_prices(
             [security.name for security in owned_securities]
@@ -183,6 +186,16 @@ class YoloServiceImpl(YoloService):
 
     async def take_portfolio_snapshots(self) -> None:
         self.logger.info("Taking portfolio snapshots")
+        try:
+            user_ids = await self.database.get_all_users()
+            for user_id in user_ids:
+                portfolio = await self.get_portfolio(user_id, create_user=False)
+                await self.database.create_portfolio_snapshot(user_id, portfolio)
+            await self.database.commit()
+        except Exception as exc:
+            self.logger.error("Could not process portfolio snapshots", exc_info=exc)
+            await self.database.rollback()
+            raise
 
     async def add_allowance(self, user_id: str) -> None:
         config = get_config()

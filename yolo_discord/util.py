@@ -1,6 +1,8 @@
+import json
 from decimal import Decimal
 from moneyed import Money
-from typing import Callable
+from typing import Any, Callable
+from yolo_discord.types import PortfolioEntry
 
 
 def from_cents(cents: int) -> Money:
@@ -44,3 +46,44 @@ def format_table[T](
             divider_column,
         ]
     )
+
+
+class PortfolioEntryEncoder(json.JSONEncoder):
+    """Custom JSON encoder for PortfolioEntry dataclass."""
+
+    def default(self, o: Any) -> Any:
+        if isinstance(o, PortfolioEntry):
+            return {
+                "security_name": o.security_name,
+                "balance": o.balance.get_amount_in_sub_unit(),
+                "quantity": o.quantity,
+                "return_rate": o.return_rate,
+            }
+        return super().default(o)
+
+
+class PortfolioEntryDecoder(json.JSONDecoder):
+    """Custom JSON decoder for PortfolioEntry dataclass."""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(object_hook=self.__object_hook, *args, **kwargs)
+
+    @staticmethod
+    def __object_hook(obj: dict[str, Any]) -> Any:
+        # Check if this dict has the keys for a PortfolioEntry
+        if all(
+            key in obj
+            for key in [
+                "security_name",
+                "balance",
+                "quantity",
+                "return_rate",
+            ]
+        ):
+            return PortfolioEntry(
+                security_name=obj["security_name"],
+                balance=from_cents(obj["balance"]),
+                quantity=obj["quantity"],
+                return_rate=obj["return_rate"],
+            )
+        return obj

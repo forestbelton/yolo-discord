@@ -1,10 +1,11 @@
 import abc
 import aiosqlite
 import datetime
+import json
 import moneyed
 
 from yolo_discord import types
-from yolo_discord.util import from_cents
+from yolo_discord.util import from_cents, PortfolioEntryEncoder
 
 
 class Database(abc.ABC):
@@ -35,6 +36,14 @@ class Database(abc.ABC):
     async def get_user_security_quantity(
         self, user_id: str, security_name: str
     ) -> int: ...
+
+    @abc.abstractmethod
+    async def create_portfolio_snapshot(
+        self, user_id: str, portfolio: list[types.PortfolioEntry]
+    ) -> None: ...
+
+    @abc.abstractmethod
+    async def get_all_users(self) -> list[str]: ...
 
     @abc.abstractmethod
     async def commit(self) -> None: ...
@@ -234,6 +243,29 @@ class DatabaseImpl(Database):
         if row is None:
             raise Exception("could not get user security quantity")
         return row["quantity"]
+
+    async def create_portfolio_snapshot(
+        self, user_id: str, portfolio: list[types.PortfolioEntry]
+    ) -> None:
+        data = json.dumps(portfolio, cls=PortfolioEntryEncoder)
+        await self.connection.execute(
+            """
+            INSERT INTO portfolio_snapshots (
+                user_id,
+                data
+            ) VALUES (
+                :user_id,
+                :data
+            )
+            """,
+            {"user_id": user_id, "data": data},
+        )
+
+    async def get_all_users(self) -> list[str]:
+        rows = await self.connection.execute_fetchall(
+            "SELECT user_id FROM discord_users"
+        )
+        return [row["user_id"] for row in rows]
 
     async def commit(self) -> None:
         await self.connection.commit()
