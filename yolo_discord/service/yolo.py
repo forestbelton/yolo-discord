@@ -26,10 +26,22 @@ class YoloService(abc.ABC):
     async def add_allowance(self, user_id: str) -> None: ...
 
 
-class NotEnoughMoneyException(Exception): ...
+class NotEnoughMoneyException(Exception):
+    available_funds: Money
+    required_funds: Money
+
+    def __init__(self, available_funds: Money, required_funds: Money) -> None:
+        super().__init__()
+        self.available_funds = available_funds
+        self.required_funds = required_funds
 
 
-class NotEnoughQuantityException(Exception): ...
+class NotEnoughQuantityException(Exception):
+    available_quantity: int
+
+    def __init__(self, available_quantity: int) -> None:
+        super().__init__()
+        self.available_quantity = available_quantity
 
 
 class YoloServiceImpl(YoloService):
@@ -61,7 +73,10 @@ class YoloServiceImpl(YoloService):
                 )
             debit_amount = security_price * request.quantity
             if debit_amount > balance:
-                raise NotEnoughMoneyException()
+                raise NotEnoughMoneyException(
+                    available_funds=balance,
+                    required_funds=debit_amount,
+                )
             debit = await self.database.create_transaction(
                 TransactionInsert(
                     user_id=request.user_id,
@@ -93,7 +108,7 @@ class YoloServiceImpl(YoloService):
                 request.user_id, request.security_name
             )
             if quantity < request.quantity:
-                raise NotEnoughQuantityException()
+                raise NotEnoughQuantityException(available_quantity=quantity)
             security_price = await self.security_service.get_security_price(
                 request.security_name
             )

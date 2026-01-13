@@ -27,7 +27,7 @@ class CommandsCog(commands.Cog):
 
     @commands.command()
     async def buy(self, ctx: commands.Context["Bot"]) -> None:
-        self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !buy")
+        self.log_command(ctx)
         args = ctx.message.content.split(" ")
         if len(args) != 3:
             await ctx.reply("Incorrect usage. Should be: !buy {security} {quantity}")
@@ -48,15 +48,17 @@ class CommandsCog(commands.Cog):
             await ctx.reply(
                 f"You bought {order.quantity} shares of ${order.security_name} at {order.security_price} per share."
             )
-        except NotEnoughMoneyException:
-            await ctx.reply("Insufficient available funds to place order.")
+        except NotEnoughMoneyException as exc:
+            await ctx.reply(
+                f"You need {exc.required_funds} to place this order, but you only have {exc.available_funds}."
+            )
         except Exception as exc:
             self.bot.logger.error("Could not place order", exc_info=exc)
             await ctx.reply("The order could not be placed.")
 
     @commands.command()
     async def sell(self, ctx: commands.Context["Bot"]) -> None:
-        self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !sell")
+        self.log_command(ctx)
         args = ctx.message.content.split(" ")
         if len(args) != 3:
             await ctx.reply("Incorrect usage. Should be: !sell {security} {quantity}")
@@ -77,15 +79,17 @@ class CommandsCog(commands.Cog):
             await ctx.reply(
                 f"You sold {order.quantity} shares of ${order.security_name} at {order.security_price} per share."
             )
-        except NotEnoughQuantityException:
-            await ctx.reply("Insufficient available securities to place order.")
+        except NotEnoughQuantityException as exc:
+            await ctx.reply(
+                f"You need {quantity} shares of ${args[1]} to place this order, but you only have {exc.available_quantity}."
+            )
         except Exception as exc:
             self.bot.logger.error("Could not place order", exc_info=exc)
             await ctx.reply("The order could not be placed.")
 
     @commands.command()
     async def price(self, ctx: commands.Context["Bot"]) -> None:
-        self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !price")
+        self.log_command(ctx)
         args = ctx.message.content.split(" ")
         if len(args) != 2:
             await ctx.reply("Incorrect usage. Should be !price {security}")
@@ -98,7 +102,7 @@ class CommandsCog(commands.Cog):
 
     @commands.command()
     async def portfolio(self, ctx: commands.Context["Bot"]) -> None:
-        self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !portfolio")
+        self.log_command(ctx)
         try:
             portfolio = await self.bot.yolo_service.get_portfolio(str(ctx.author.id))
             cash = await self.bot.yolo_service.get_balance(str(ctx.author.id))
@@ -144,6 +148,11 @@ class CommandsCog(commands.Cog):
         except Exception as exc:
             self.bot.logger.error("Could not calculate portfolio", exc_info=exc)
             await ctx.reply("Could not calculate portfolio.")
+
+    def log_command(self, ctx: commands.Context["Bot"]) -> None:
+        self.bot.logger.info(
+            f"<@{ctx.author.id}> ({ctx.author.name}) used {ctx.message.content}"
+        )
 
 
 class Bot(commands.Bot):
