@@ -157,23 +157,27 @@ class DatabaseImpl(Database):
         rows = list(
             await self.connection.execute_fetchall(
                 """
-                SELECT
-                    security_name,
-                    SUM(
-                        quantity * (
-                            CASE WHEN type = 'BUY' THEN 1
-                            ELSE -1 END
-                        )
-                    ) AS quantity,
-                    SUM(
-                        security_price_cents * quantity * (
-                            CASE WHEN type = 'BUY' THEN 1
-                            ELSE -1 END
-                        )
-                    ) AS total_price_paid
-                FROM orders
-                WHERE user_id = :user_id
-                GROUP BY security_name
+                SELECT *
+                FROM (
+                    SELECT
+                        security_name,
+                        SUM(
+                            quantity * (
+                                CASE WHEN type = 'BUY' THEN 1
+                                ELSE -1 END
+                            )
+                        ) AS quantity,
+                        SUM(
+                            security_price_cents * quantity * (
+                                CASE WHEN type = 'BUY' THEN 1
+                                ELSE -1 END
+                            )
+                        ) AS total_price_paid
+                    FROM orders
+                    WHERE user_id = :user_id
+                    GROUP BY security_name
+                )
+                WHERE quantity > 0
                 """,
                 {"user_id": user_id},
             )
