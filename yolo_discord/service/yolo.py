@@ -21,6 +21,8 @@ class YoloService(abc.ABC):
     async def buy(self, request: CreateOrderRequest) -> Order: ...
     async def get_portfolio(self, user_id: str) -> list[PortfolioEntry]: ...
     async def update_allowances(self) -> None: ...
+    async def take_portfolio_snapshots(self) -> None: ...
+    async def add_allowance(self, user_id: str) -> None: ...
 
 
 class YoloServiceImpl(YoloService):
@@ -77,11 +79,15 @@ class YoloServiceImpl(YoloService):
             await self.database.rollback()
             raise
 
-    async def create_user(self, user_id: str) -> None:
+    async def create_user(self, user_id: str):
         try:
             is_new_user = await self.database.create_user(user_id)
             if is_new_user:
                 config = get_config()
+                self.logger.info(
+                    f"New user <@{user_id}> created, granting starting balance of {config.starting_balance}"
+                )
+                await self.database.create_allowance(user_id)
                 await self.database.create_transaction(
                     TransactionInsert(
                         user_id=user_id,
@@ -91,18 +97,19 @@ class YoloServiceImpl(YoloService):
                     )
                 )
                 await self.database.commit()
-        except:
+        except Exception as exc:
+            self.logger.error("Could not create user", exc_info=exc)
             await self.database.rollback()
             raise
 
     async def get_portfolio(self, user_id: str) -> list[PortfolioEntry]:
-        await self.database.create_user(user_id)
+        await self.create_user(user_id)
         owned_securities = await self.database.get_owned_securities(user_id)
         current_prices = await self.security_service.get_security_prices(
             [security.name for security in owned_securities]
         )
         if current_prices is None:
-            raise Exception("could not look up security prices")
+            raise Exception("Could not look up security prices")
         return [
             PortfolioEntry(
                 security_name=security.name,
@@ -115,7 +122,31 @@ class YoloServiceImpl(YoloService):
         ]
 
     async def update_allowances(self) -> None:
-        pass
+        self.logger.info("Granting user allowances")
+        try:
+            user_ids = await self.database.get_eligible_users_for_allowance()
+            for user_id in user_ids:
+                await self.add_allowance(user_id)
+            await self.database.commit()
+        except Exception as exc:
+            self.logger.error("Could not process allowances", exc_info=exc)
+            await self.database.rollback()
+            raise
+
+    async def take_portfolio_snapshots(self) -> None:
+        self.logger.info("Taking portfolio snapshots")
+
+    async def add_allowance(self, user_id: str) -> None:
+        config = get_config()
+        await self.database.create_allowance(user_id)
+        await self.database.create_transaction(
+            TransactionInsert(
+                user_id=user_id,
+                type=TransactionType.CREDIT,
+                amount=config.weekly_allowance,
+                comment="Weekly allowance",
+            )
+        )
 
 
 def calculate_return_rate(security: OwnedSecurity, current_price: Money) -> float:

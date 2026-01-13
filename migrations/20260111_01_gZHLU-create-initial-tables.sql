@@ -34,10 +34,10 @@ CREATE INDEX orders_user_id_transaction_id_idx
 
 CREATE TABLE security_prices(
   name TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  price_cents INTEGER NOT NULL
+  created_at TEXT NOT NULL DEFAULT CURRENT_DATE,
+  price_cents INTEGER NOT NULL,
+  UNIQUE (name, created_at)
 );
 
 CREATE INDEX security_prices_name_created_at_idx
   ON security_prices (name, created_at);
-

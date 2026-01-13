@@ -78,7 +78,7 @@ class CommandsCog(commands.Cog):
             )
 
         except Exception as exc:
-            print(f"could not calculate portfolio: {exc}")
+            self.bot.logger.error("Could not calculate portfolio", exc_info=exc)
             await ctx.reply("Could not calculate portfolio.")
 
 
@@ -126,9 +126,9 @@ class Bot(commands.Bot):
 
     @tasks.loop(time=time(hour=0, minute=0))
     async def take_portfolio_snapshots(self) -> None:
-        print("taking portfolio snapshots")
+        print("Taking portfolio snapshots")
 
     async def on_ready(self) -> None:
-        self.logger.info("starting tasks")
+        self.logger.info("Starting tasks")
         self.update_allowances.start()
         self.take_portfolio_snapshots.start()

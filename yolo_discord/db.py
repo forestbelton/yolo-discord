@@ -26,6 +26,12 @@ class Database(abc.ABC):
     async def get_owned_securities(self, user_id: str) -> list[types.OwnedSecurity]: ...
 
     @abc.abstractmethod
+    async def create_allowance(self, user_id: str) -> None: ...
+
+    @abc.abstractmethod
+    async def get_eligible_users_for_allowance(self) -> list[str]: ...
+
+    @abc.abstractmethod
     async def commit(self) -> None: ...
 
     @abc.abstractmethod
@@ -180,6 +186,25 @@ class DatabaseImpl(Database):
             )
             for row in rows
         ]
+
+    async def create_allowance(self, user_id: str) -> None:
+        await self.connection.execute(
+            "INSERT INTO allowances (user_id) VALUES (:user_id)",
+            {"user_id": user_id},
+        )
+
+    async def get_eligible_users_for_allowance(self) -> list[str]:
+        rows = await self.connection.execute_fetchall(
+            """
+            SELECT du.user_id
+            FROM discord_users du
+            LEFT JOIN allowances a 
+                ON du.user_id = a.user_id 
+                AND a.created_at > date('now', '-7 days')
+            WHERE a.user_id IS NULL;
+            """
+        )
+        return [row["user_id"] for row in rows]
 
     async def commit(self) -> None:
         await self.connection.commit()
