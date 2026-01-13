@@ -26,12 +26,6 @@ class CommandsCog(commands.Cog):
         self.bot = bot
 
     @commands.command()
-    async def balance(self, ctx: commands.Context["Bot"]) -> None:
-        self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !balance")
-        balance = await self.bot.yolo_service.get_balance(str(ctx.author.id))
-        await ctx.reply(f"You have {balance} of available funds.")
-
-    @commands.command()
     async def buy(self, ctx: commands.Context["Bot"]) -> None:
         self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !buy")
         args = ctx.message.content.split(" ")
