@@ -15,7 +15,7 @@ class SecurityService(abc.ABC):
 
 class SecurityServiceImpl(SecurityService):
     finnhub_api_key: str
-    price_cache: TTLCache
+    price_cache: TTLCache[str, Money]
 
     def __init__(self, finnhub_api_key: str) -> None:
         self.finnhub_api_key = finnhub_api_key
@@ -34,15 +34,17 @@ class SecurityServiceImpl(SecurityService):
                     return None
                 prices[name] = price
         return prices
-    
-    async def fetch_price_through_cache(self, session: aiohttp.ClientSession, name: str) -> Optional[Money]:
-        cache_hit = self.price_cache.get(name)
-        if cache_hit is not None:
-            return cache_hit
-        price = await fetch_security_price(session, self.finnhub_api_key, name)
-        self.price_cache[name] = price
-        return price
 
+    async def fetch_price_through_cache(
+        self, session: aiohttp.ClientSession, name: str
+    ) -> Optional[Money]:
+        try:
+            price = self.price_cache[name]
+        except KeyError:
+            price = await fetch_security_price(session, self.finnhub_api_key, name)
+        if price is not None:
+            self.price_cache[name] = price
+        return price
 
 
 async def fetch_security_price(
