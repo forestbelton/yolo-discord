@@ -19,6 +19,7 @@ from yolo_discord.service.security import SecurityService
 class YoloService(abc.ABC):
     async def get_balance(self, user_id: str) -> Money: ...
     async def buy(self, request: CreateOrderRequest) -> Order: ...
+    async def sell(self, request: CreateOrderRequest) -> Order: ...
     async def get_portfolio(self, user_id: str) -> list[PortfolioEntry]: ...
     async def update_allowances(self) -> None: ...
     async def take_portfolio_snapshots(self) -> None: ...
@@ -26,6 +27,9 @@ class YoloService(abc.ABC):
 
 
 class NotEnoughMoneyException(Exception): ...
+
+
+class NotEnoughQuantityException(Exception): ...
 
 
 class YoloServiceImpl(YoloService):
@@ -71,6 +75,46 @@ class YoloServiceImpl(YoloService):
                     user_id=request.user_id,
                     transaction_id=debit.id,
                     type=OrderType.BUY,
+                    security_name=request.security_name,
+                    security_price=security_price,
+                    quantity=request.quantity,
+                )
+            )
+            await self.database.commit()
+            return order
+        except:
+            await self.database.rollback()
+            raise
+
+    async def sell(self, request: CreateOrderRequest) -> Order:
+        await self.create_user(request.user_id)
+        try:
+            quantity = await self.database.get_user_security_quantity(
+                request.user_id, request.security_name
+            )
+            if quantity < request.quantity:
+                raise NotEnoughQuantityException()
+            security_price = await self.security_service.get_security_price(
+                request.security_name
+            )
+            if security_price is None:
+                raise Exception(
+                    f"Could not fetch price of security ${request.security_name}"
+                )
+            credit_amount = security_price * request.quantity
+            credit = await self.database.create_transaction(
+                TransactionInsert(
+                    user_id=request.user_id,
+                    type=TransactionType.CREDIT,
+                    amount=credit_amount,
+                    comment=f"Sell for {request.quantity} of ${request.security_name}",
+                )
+            )
+            order = await self.database.create_order(
+                OrderInsert(
+                    user_id=request.user_id,
+                    transaction_id=credit.id,
+                    type=OrderType.SELL,
                     security_name=request.security_name,
                     security_price=security_price,
                     quantity=request.quantity,

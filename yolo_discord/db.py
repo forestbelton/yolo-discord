@@ -32,6 +32,11 @@ class Database(abc.ABC):
     async def get_eligible_users_for_allowance(self) -> list[str]: ...
 
     @abc.abstractmethod
+    async def get_user_security_quantity(
+        self, user_id: str, security_name: str
+    ) -> int: ...
+
+    @abc.abstractmethod
     async def commit(self) -> None: ...
 
     @abc.abstractmethod
@@ -209,6 +214,26 @@ class DatabaseImpl(Database):
             """
         )
         return [row["user_id"] for row in rows]
+
+    async def get_user_security_quantity(self, user_id: str, security_name: str) -> int:
+        cursor = await self.connection.execute(
+            """
+            SELECT SUM(
+                quantity * (
+                    CASE WHEN type = 'BUY' THEN 1
+                    ELSE -1 END
+                )
+            ) AS quantity
+            FROM orders
+            WHERE user_id = :user_id
+            AND security_name = :security_name
+            """,
+            {"user_id": user_id, "security_name": security_name},
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            raise Exception("could not get user security quantity")
+        return row["quantity"]
 
     async def commit(self) -> None:
         await self.connection.commit()

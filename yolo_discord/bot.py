@@ -6,6 +6,7 @@ from yolo_discord.db import DatabaseImpl
 from yolo_discord.service.security import SecurityService, SecurityServiceImpl
 from yolo_discord.service.yolo import (
     NotEnoughMoneyException,
+    NotEnoughQuantityException,
     YoloService,
     YoloServiceImpl,
 )
@@ -30,12 +31,12 @@ class CommandsCog(commands.Cog):
         self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !buy")
         args = ctx.message.content.split(" ")
         if len(args) != 3:
-            await ctx.reply("Incorrect usage. Should be: !order {security} {quantity}")
+            await ctx.reply("Incorrect usage. Should be: !buy {security} {quantity}")
             return
         try:
             quantity = int(args[2])
         except:
-            await ctx.reply("Incorrect usage. Should be: !order {security} {quantity}")
+            await ctx.reply("Incorrect usage. Should be: !buy {security} {quantity}")
             return
         try:
             order = await self.bot.yolo_service.buy(
@@ -48,6 +49,33 @@ class CommandsCog(commands.Cog):
             await ctx.reply(f"{order}")
         except NotEnoughMoneyException:
             await ctx.reply("Insufficient available funds to place order.")
+        except Exception as exc:
+            self.bot.logger.error("Could not place order", exc_info=exc)
+            await ctx.reply("The order could not be placed.")
+
+    @commands.command()
+    async def sell(self, ctx: commands.Context["Bot"]) -> None:
+        self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !sell")
+        args = ctx.message.content.split(" ")
+        if len(args) != 3:
+            await ctx.reply("Incorrect usage. Should be: !sell {security} {quantity}")
+            return
+        try:
+            quantity = int(args[2])
+        except:
+            await ctx.reply("Incorrect usage. Should be: !sell {security} {quantity}")
+            return
+        try:
+            order = await self.bot.yolo_service.sell(
+                CreateOrderRequest(
+                    user_id=str(ctx.author.id),
+                    security_name=args[1],
+                    quantity=quantity,
+                )
+            )
+            await ctx.reply(f"{order}")
+        except NotEnoughQuantityException:
+            await ctx.reply("Insufficient available securities to place order.")
         except Exception as exc:
             self.bot.logger.error("Could not place order", exc_info=exc)
             await ctx.reply("The order could not be placed.")
