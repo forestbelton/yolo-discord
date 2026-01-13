@@ -47,14 +47,18 @@ class Table[T]:
     def format(self, include_header: bool = True) -> str:
         header_column = "│"
         divider_column = "├"
+        bottom_divider_column = "└"
         for i, header in enumerate(self.column_headers):
             header_len = self.column_lengths[i]
             header_column += f" {header.rjust(header_len, ' ')} │"
             divider_column += f"─{'─' * header_len}─"
+            bottom_divider_column += f"─{'─' * header_len}─"
             if i < len(self.column_headers) - 1:
                 divider_column += "┼"
+                bottom_divider_column += "┴"
             else:
                 divider_column += "┤"
+                bottom_divider_column += "┘"
         data_columns: list[str] = []
         for i in range(self.data_length):
             data_column = "│"
@@ -64,7 +68,6 @@ class Table[T]:
                     f" {self.column_data[header][i].rjust(column_len, ' ')} │"
                 )
             data_columns.append(data_column)
-        bottom_divider_column = f"└{"─" * (len(divider_column) - 2)}┘"
         rows: list[str] = []
         if include_header:
             rows.append(header_column)

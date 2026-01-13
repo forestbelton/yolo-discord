@@ -125,8 +125,8 @@ class CommandsCog(commands.Cog):
                     amount_column: lambda entry: str(entry[1]),
                 },
                 [
-                    ("Cash", cash),
-                    ("Total", cash + total),
+                    ("Available Funds", cash),
+                    ("Total Assets", cash + total),
                 ],
             )
             await ctx.reply(
