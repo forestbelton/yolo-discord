@@ -2,7 +2,6 @@ import discord
 from datetime import datetime, time
 from discord.ext import commands, tasks
 from logging import Logger, getLogger
-from moneyed import Money
 from yolo_discord.db import DatabaseImpl
 from yolo_discord.service.security import SecurityService, SecurityServiceImpl
 from yolo_discord.service.yolo import (
@@ -11,8 +10,8 @@ from yolo_discord.service.yolo import (
     YoloService,
     YoloServiceImpl,
 )
-from yolo_discord.types import CreateOrderRequest, PortfolioEntry
-from yolo_discord.util import format_table, format_return_rate
+from yolo_discord.types import CreateOrderRequest
+from yolo_discord.util import format_return_rate, Table
 
 
 class CommandsCog(commands.Cog):
@@ -103,26 +102,36 @@ class CommandsCog(commands.Cog):
         self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !portfolio")
         try:
             portfolio = await self.bot.yolo_service.get_portfolio(str(ctx.author.id))
-            
             cash = await self.bot.yolo_service.get_balance(str(ctx.author.id))
-            portfolio.append(PortfolioEntry('Cash', cash, None, 0))
-
-            total = Money(0, 'USD')
-            for entries in portfolio:
-                total += entries.balance
-            portfolio.append(PortfolioEntry('Total', total, None, 0))
-
-            table = format_table(
-                ["Name", "Amount", "Balance", "Return"],
-                {
+            total = sum([entry.balance for entry in portfolio])
+            security_table = Table(
+                column_headers=["Name", "Amount", "Balance", "Return"],
+                formatters={
                     "Name": lambda entry: entry.security_name,
-                    "Amount": lambda entry: str(entry.quantity) if entry.quantity is not None else '-',
+                    "Amount": lambda entry: str(entry.quantity),
                     "Balance": lambda entry: str(entry.balance),
                     "Return": format_return_rate,
                 },
-                portfolio,
+                data=portfolio,
             )
-            await ctx.reply(f"```\n{table}\n```")
+            width = security_table.width() - 7
+            field_column = "Field".rjust(width // 2, " ")
+            amount_column = "Amount".rjust(width - width // 2, " ")
+
+            summary_table = Table(
+                [field_column, amount_column],
+                {
+                    field_column: lambda entry: entry[0],
+                    amount_column: lambda entry: str(entry[1]),
+                },
+                [
+                    ("Cash", cash),
+                    ("Total", cash + total),
+                ],
+            )
+            await ctx.reply(
+                f"```{security_table.format()}\n{summary_table.format(include_header=False)}```"
+            )
         except Exception as exc:
             self.bot.logger.error("Could not calculate portfolio", exc_info=exc)
             await ctx.reply("Could not calculate portfolio.")

@@ -14,7 +14,6 @@ from yolo_discord.types import (
 from yolo_discord.config import get_config
 from yolo_discord.db import Database
 from yolo_discord.service.security import SecurityService
-from yolo_discord import types
 
 
 class YoloService(abc.ABC):

@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass
 from decimal import Decimal
 from moneyed import Money
 from typing import Any, Callable
@@ -20,42 +21,60 @@ def format_return_rate(entry: PortfolioEntry) -> str:
     return f"{sign}{return_rate:.2f}%"
 
 
-def format_table[T](
-    column_headers: list[str],
-    formatters: dict[str, Callable[[T], str]],
-    data: list[T],
-) -> str:
-    column_lengths: list[int] = [len(header) for header in column_headers]
-    column_data: dict[str, list[str]] = {header: [] for header in column_headers}
-    for datum in data:
-        for i, header in enumerate(column_headers):
-            item = formatters[header](datum)
-            column_lengths[i] = max(column_lengths[i], len(item))
-            column_data[header].append(item)
+@dataclass
+class Table[T]:
+    column_headers: list[str]
+    column_lengths: list[int]
+    column_data: dict[str, list[str]]
+    data_length: int
 
-    header_column = "|"
-    divider_column = "|"
-    for i, header in enumerate(column_headers):
-        header_len = column_lengths[i]
-        header_column += f" {header.rjust(header_len, ' ')} |"
-        divider_column += f"-{'-' * header_len}-|"
+    def __init__(
+        self,
+        column_headers: list[str],
+        formatters: dict[str, Callable[[T], str]],
+        data: list[T],
+    ) -> None:
+        self.column_headers = column_headers
+        self.column_lengths = [len(header) for header in column_headers]
+        self.column_data = {header: [] for header in column_headers}
+        for datum in data:
+            for i, header in enumerate(column_headers):
+                item = formatters[header](datum)
+                self.column_lengths[i] = max(self.column_lengths[i], len(item))
+                self.column_data[header].append(item)
+        self.data_length = len(data)
 
-    data_columns: list[str] = []
-    for i, datum in enumerate(data):
-        data_column = "|"
-        for j, header in enumerate(column_headers):
-            column_len = column_lengths[j]
-            data_column += f" {column_data[header][i].rjust(column_len, ' ')} |"
-        data_columns.append(data_column)
+    def format(self, include_header: bool = True) -> str:
+        header_column = "│"
+        divider_column = "├"
+        for i, header in enumerate(self.column_headers):
+            header_len = self.column_lengths[i]
+            header_column += f" {header.rjust(header_len, ' ')} │"
+            divider_column += f"─{'─' * header_len}─"
+            if i < len(self.column_headers) - 1:
+                divider_column += "┼"
+            else:
+                divider_column += "┤"
+        data_columns: list[str] = []
+        for i in range(self.data_length):
+            data_column = "│"
+            for j, header in enumerate(self.column_headers):
+                column_len = self.column_lengths[j]
+                data_column += (
+                    f" {self.column_data[header][i].rjust(column_len, ' ')} │"
+                )
+            data_columns.append(data_column)
+        bottom_divider_column = f"└{"─" * (len(divider_column) - 2)}┘"
+        rows: list[str] = []
+        if include_header:
+            rows.append(header_column)
+            rows.append(divider_column)
+        rows.extend(data_columns)
+        rows.append(bottom_divider_column)
+        return "\n".join(rows)
 
-    return "\n".join(
-        [
-            header_column,
-            divider_column,
-            "\n".join(data_columns),
-            divider_column,
-        ]
-    )
+    def width(self) -> int:
+        return 1 + sum(self.column_lengths) + 3 * len(self.column_lengths)
 
 
 class PortfolioEntryEncoder(json.JSONEncoder):
