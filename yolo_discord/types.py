@@ -72,5 +72,5 @@ class OwnedSecurity:
 class PortfolioEntry:
     security_name: str
     balance: moneyed.Money
-    quantity: int
+    quantity: int | None
     return_rate: float

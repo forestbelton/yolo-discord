@@ -2,6 +2,7 @@ import discord
 from datetime import datetime, time
 from discord.ext import commands, tasks
 from logging import Logger, getLogger
+from moneyed import Money
 from yolo_discord.db import DatabaseImpl
 from yolo_discord.service.security import SecurityService, SecurityServiceImpl
 from yolo_discord.service.yolo import (
@@ -10,7 +11,7 @@ from yolo_discord.service.yolo import (
     YoloService,
     YoloServiceImpl,
 )
-from yolo_discord.types import CreateOrderRequest
+from yolo_discord.types import CreateOrderRequest, PortfolioEntry
 from yolo_discord.util import format_table, format_return_rate
 
 
@@ -102,14 +103,20 @@ class CommandsCog(commands.Cog):
         self.bot.logger.info(f"<@{ctx.author.id}> ({ctx.author.name}) used !portfolio")
         try:
             portfolio = await self.bot.yolo_service.get_portfolio(str(ctx.author.id))
-            if len(portfolio) == 0:
-                await ctx.reply("You have no securities in your portfolio.")
-                return
+            
+            cash = await self.bot.yolo_service.get_balance(str(ctx.author.id))
+            portfolio.append(PortfolioEntry('Cash', cash, None, 0))
+
+            total = Money(0, 'USD')
+            for entries in portfolio:
+                total += entries.balance
+            portfolio.append(PortfolioEntry('Total', total, None, 0))
+
             table = format_table(
                 ["Name", "Amount", "Balance", "Return"],
                 {
                     "Name": lambda entry: entry.security_name,
-                    "Amount": lambda entry: str(entry.quantity),
+                    "Amount": lambda entry: str(entry.quantity) if entry.quantity is not None else '-',
                     "Balance": lambda entry: str(entry.balance),
                     "Return": format_return_rate,
                 },
