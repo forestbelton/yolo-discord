@@ -101,7 +101,6 @@ class CommandsCog(commands.Cog):
             if len(portfolio) == 0:
                 await ctx.reply("You have no securities in your portfolio.")
                 return
-
             table = format_table(
                 ["Name", "Amount", "Balance", "Return"],
                 {
@@ -112,14 +111,7 @@ class CommandsCog(commands.Cog):
                 },
                 portfolio,
             )
-
-            await ctx.reply(
-                f"""Your current portfolio:
-```
-{table}
-```"""
-            )
-
+            await ctx.reply(f"```\n{table}\n```")
         except Exception as exc:
             self.bot.logger.error("Could not calculate portfolio", exc_info=exc)
             await ctx.reply("Could not calculate portfolio.")
@@ -167,7 +159,7 @@ class Bot(commands.Bot):
 
     @tasks.loop(time=time(hour=0, minute=0))
     async def take_portfolio_snapshots(self) -> None:
-        print("Taking portfolio snapshots")
+        await self.yolo_service.take_portfolio_snapshots()
 
     async def on_ready(self) -> None:
         self.logger.info("Starting tasks")
