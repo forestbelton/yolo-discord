@@ -28,13 +28,12 @@ class SecurityServiceImpl(SecurityService):
             price = await get_security_price(self.finnhub_api_key, name)
             if price is None:
                 return None
+            prices[name] = price
         return prices
 
 
 @cachebox.cached(cachebox.TTLCache(0, ttl=900))
-async def get_security_price(
-    token: str, symbol: str
-) -> Optional[Money]:
+async def get_security_price(token: str, symbol: str) -> Optional[Money]:
     async with aiohttp.ClientSession() as session:
         async with session.get(
             f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={token}"
