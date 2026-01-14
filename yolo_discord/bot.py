@@ -5,13 +5,13 @@ from logging import Logger, getLogger
 from yolo_discord.db import DatabaseImpl
 from yolo_discord.service.security import SecurityService, SecurityServiceImpl
 from yolo_discord.service.yolo import (
+    CreateOrderRequest,
     NotEnoughMoneyException,
     NotEnoughQuantityException,
     YoloService,
     YoloServiceImpl,
 )
 from yolo_discord.table import Table, format_tables
-from yolo_discord.types import CreateOrderRequest
 from yolo_discord.util import (
     format_return_rate,
     calculate_return_rate,

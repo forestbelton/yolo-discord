@@ -1,67 +1,72 @@
-import abc
-import aiosqlite
-import datetime
-import json
-import moneyed
+from abc import ABC, abstractmethod
+from aiosqlite import connect, Connection, Row
+from datetime import datetime
+from json import dumps
+from moneyed import Money
 
-from yolo_discord import types
+from yolo_discord.dto import (
+    Transaction,
+    TransactionInsert,
+    Order,
+    OrderInsert,
+    OwnedSecurity,
+    PortfolioEntry,
+)
 from yolo_discord.util import from_cents, PortfolioEntryEncoder
 
 
-class Database(abc.ABC):
-    @abc.abstractmethod
+class Database(ABC):
+    @abstractmethod
     async def create_user(self, user_id: str) -> bool: ...
 
-    @abc.abstractmethod
-    async def create_transaction(
-        self, request: types.TransactionInsert
-    ) -> types.Transaction: ...
+    @abstractmethod
+    async def create_transaction(self, request: TransactionInsert) -> Transaction: ...
 
-    @abc.abstractmethod
-    async def get_user_balance(self, user_id: str) -> moneyed.Money: ...
+    @abstractmethod
+    async def get_user_balance(self, user_id: str) -> Money: ...
 
-    @abc.abstractmethod
-    async def create_order(self, request: types.OrderInsert) -> types.Order: ...
+    @abstractmethod
+    async def create_order(self, request: OrderInsert) -> Order: ...
 
-    @abc.abstractmethod
-    async def get_owned_securities(self, user_id: str) -> list[types.OwnedSecurity]: ...
+    @abstractmethod
+    async def get_owned_securities(self, user_id: str) -> list[OwnedSecurity]: ...
 
-    @abc.abstractmethod
+    @abstractmethod
     async def create_allowance(self, user_id: str) -> None: ...
 
-    @abc.abstractmethod
+    @abstractmethod
     async def get_eligible_users_for_allowance(self) -> list[str]: ...
 
-    @abc.abstractmethod
+    @abstractmethod
     async def get_user_security_quantity(
         self, user_id: str, security_name: str
     ) -> int: ...
 
-    @abc.abstractmethod
+    @abstractmethod
     async def create_portfolio_snapshot(
-        self, user_id: str, portfolio: list[types.PortfolioEntry]
+        self, user_id: str, portfolio: list[PortfolioEntry]
     ) -> None: ...
 
-    @abc.abstractmethod
+    @abstractmethod
     async def get_all_users(self) -> list[str]: ...
 
-    @abc.abstractmethod
+    @abstractmethod
     async def commit(self) -> None: ...
 
-    @abc.abstractmethod
+    @abstractmethod
     async def rollback(self) -> None: ...
 
 
 class DatabaseImpl(Database):
-    connection: aiosqlite.Connection
+    connection: Connection
 
-    def __init__(self, connection: aiosqlite.Connection) -> None:
+    def __init__(self, connection: Connection) -> None:
         self.connection = connection
-        self.connection.row_factory = aiosqlite.Row
+        self.connection.row_factory = Row
 
     @staticmethod
     async def create(url: str) -> "DatabaseImpl":
-        return DatabaseImpl(await aiosqlite.connect(url))
+        return DatabaseImpl(await connect(url))
 
     async def create_user(self, user_id: str) -> bool:
         cursor = await self.connection.execute(
@@ -70,9 +75,7 @@ class DatabaseImpl(Database):
         )
         return cursor.rowcount > 0
 
-    async def create_transaction(
-        self, request: types.TransactionInsert
-    ) -> types.Transaction:
+    async def create_transaction(self, request: TransactionInsert) -> Transaction:
         cursor = await self.connection.execute(
             """
             INSERT INTO transactions (
@@ -96,16 +99,16 @@ class DatabaseImpl(Database):
         )
         if cursor.lastrowid is None:
             raise Exception("could not insert transaction")
-        return types.Transaction(
+        return Transaction(
             id=cursor.lastrowid,
-            created_at=datetime.datetime.now(),
+            created_at=datetime.now(),
             user_id=request.user_id,
             type=request.type,
             amount=request.amount,
             comment=request.comment,
         )
 
-    async def get_user_balance(self, user_id: str) -> moneyed.Money:
+    async def get_user_balance(self, user_id: str) -> Money:
         cursor = await self.connection.execute(
             """
             SELECT COALESCE(
@@ -126,7 +129,7 @@ class DatabaseImpl(Database):
             raise Exception("could not get user balance")
         return from_cents(row["balance_cents"])
 
-    async def create_order(self, request: types.OrderInsert) -> types.Order:
+    async def create_order(self, request: OrderInsert) -> Order:
         cursor = await self.connection.execute(
             """
             INSERT INTO orders (
@@ -156,9 +159,9 @@ class DatabaseImpl(Database):
         )
         if cursor.lastrowid is None:
             raise Exception("could not create order")
-        return types.Order(
+        return Order(
             id=cursor.lastrowid,
-            created_at=datetime.datetime.now(),
+            created_at=datetime.now(),
             user_id=request.user_id,
             transaction_id=request.transaction_id,
             type=request.type,
@@ -167,7 +170,7 @@ class DatabaseImpl(Database):
             quantity=request.quantity,
         )
 
-    async def get_owned_securities(self, user_id: str) -> list[types.OwnedSecurity]:
+    async def get_owned_securities(self, user_id: str) -> list[OwnedSecurity]:
         rows = list(
             await self.connection.execute_fetchall(
                 """
@@ -197,7 +200,7 @@ class DatabaseImpl(Database):
             )
         )
         return [
-            types.OwnedSecurity(
+            OwnedSecurity(
                 name=row["security_name"],
                 quantity=row["quantity"],
                 total_price_paid=from_cents(row["total_price_paid"]),
@@ -245,9 +248,9 @@ class DatabaseImpl(Database):
         return row["quantity"]
 
     async def create_portfolio_snapshot(
-        self, user_id: str, portfolio: list[types.PortfolioEntry]
+        self, user_id: str, portfolio: list[PortfolioEntry]
     ) -> None:
-        data = json.dumps(
+        data = dumps(
             portfolio,
             cls=PortfolioEntryEncoder,
             separators=(",", ":"),

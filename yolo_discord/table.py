@@ -68,27 +68,26 @@ def format_tables(*tables: Table) -> str:
     return "\n".join(output)
 
 
-def format_top_divider_column(table: Table) -> str:
-    top_divider_column = "┌"
-    for i, _ in enumerate(table.column_headers):
-        header_len = table.column_lengths[i]
-        top_divider_column += f"─{'─' * header_len}─"
+def format_divider_column(
+    table: Table, left_char: str, middle_char: str, right_char: str
+) -> str:
+    column = left_char
+    for i in range(len(table.column_headers)):
+        column_len = table.column_lengths[i]
+        column += f"─{'─' * column_len}─"
         if i < len(table.column_headers) - 1:
-            top_divider_column += "┬"
-    top_divider_column += "┐"
-    return top_divider_column
+            column += middle_char
+    column += right_char
+    return column
+
+
+def format_top_divider_column(table: Table) -> str:
+    return format_divider_column(table, "┌", "┬", "┐")
 
 
 def format_bottom_divider_column(table: Table, next_table: Optional[Table]) -> str:
     if next_table is None:
-        bottom_divider_column = "└"
-        for i, _ in enumerate(table.column_headers):
-            header_len = table.column_lengths[i]
-            bottom_divider_column += f"─{'─' * header_len}─"
-            if i < len(table.column_headers) - 1:
-                bottom_divider_column += "┴"
-        bottom_divider_column += "┘"
-        return bottom_divider_column
+        return format_divider_column(table, "└", "┴", "┘")
     assert table.width() == next_table.width()
     bottom_divider_column = "├"
     top_connections: set[int] = set()

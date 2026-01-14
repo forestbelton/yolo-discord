@@ -1,8 +1,8 @@
-import abc
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from logging import Logger
 from moneyed import Money
-from yolo_discord.types import (
-    CreateOrderRequest,
+from yolo_discord.dto import (
     Order,
     OrderInsert,
     OrderType,
@@ -16,13 +16,33 @@ from yolo_discord.service.security import SecurityService
 from yolo_discord.util import calculate_return_rate
 
 
-class YoloService(abc.ABC):
+@dataclass
+class CreateOrderRequest:
+    user_id: str
+    security_name: str
+    quantity: int
+
+
+class YoloService(ABC):
+    @abstractmethod
     async def get_balance(self, user_id: str) -> Money: ...
+
+    @abstractmethod
     async def buy(self, request: CreateOrderRequest) -> Order: ...
+
+    @abstractmethod
     async def sell(self, request: CreateOrderRequest) -> Order: ...
+
+    @abstractmethod
     async def get_portfolio(self, user_id: str) -> list[PortfolioEntry]: ...
+
+    @abstractmethod
     async def update_allowances(self) -> None: ...
+
+    @abstractmethod
     async def take_portfolio_snapshots(self) -> None: ...
+
+    @abstractmethod
     async def add_allowance(self, user_id: str) -> None: ...
 
 

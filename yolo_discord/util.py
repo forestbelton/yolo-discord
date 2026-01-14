@@ -2,7 +2,7 @@ import json
 from decimal import Decimal
 from moneyed import Money
 from typing import Any, Iterable
-from yolo_discord.types import PortfolioEntry
+from yolo_discord.dto import PortfolioEntry
 
 
 def from_cents(cents: int) -> Money:
