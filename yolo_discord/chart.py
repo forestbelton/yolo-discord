@@ -66,8 +66,8 @@ def render_portfolio_balance_chart(
 
     # Set labels and title
     ax.set_xlabel("Date", fontsize=12, fontweight="bold")  # type: ignore[misc]
-    ax.set_ylabel("Portfolio Balance", fontsize=12, fontweight="bold")  # type: ignore[misc]
-    ax.set_title("Portfolio Balance Over Time", fontsize=14, fontweight="bold")  # type: ignore[misc]
+    ax.set_ylabel("Asset Balance", fontsize=12, fontweight="bold")  # type: ignore[misc]
+    ax.set_title("Asset Balance Over Time", fontsize=14, fontweight="bold")  # type: ignore[misc]
 
     # Add grid for better readability
     ax.grid(True, alpha=0.3, linestyle="--")  # type: ignore[misc]
