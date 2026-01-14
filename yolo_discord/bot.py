@@ -156,6 +156,7 @@ class CommandsCog(commands.Cog):
     async def chart(self, ctx: commands.Context["Bot"]) -> None:
         self.log_command(ctx)
         try:
+            await ctx.typing()
             snapshots = await self.bot.yolo_service.get_portfolio_snapshots(
                 str(ctx.author.id)
             )
