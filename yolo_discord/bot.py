@@ -2,6 +2,8 @@ import discord
 from datetime import datetime, time
 from discord.ext import commands, tasks
 from logging import Logger, getLogger
+from tempfile import NamedTemporaryFile
+from yolo_discord.chart import render_portfolio_balance_chart
 from yolo_discord.db import DatabaseImpl
 from yolo_discord.service.security import SecurityService, SecurityServiceImpl
 from yolo_discord.service.yolo import (
@@ -149,6 +151,24 @@ class CommandsCog(commands.Cog):
         except Exception as exc:
             self.bot.logger.error("Could not calculate portfolio", exc_info=exc)
             await ctx.reply("Could not calculate portfolio.")
+
+    @commands.command()
+    async def chart(self, ctx: commands.Context["Bot"]) -> None:
+        self.log_command(ctx)
+        try:
+            snapshots = await self.bot.yolo_service.get_portfolio_snapshots(
+                str(ctx.author.id)
+            )
+            with NamedTemporaryFile() as png_file:
+                render_portfolio_balance_chart(png_file.file, snapshots)
+                embed = discord.Embed()
+                embed.set_image(url="attachment://chart.png")
+                await ctx.reply(
+                    embed=embed,
+                    file=discord.File(png_file.name, filename="chart.png"),
+                )
+        except Exception as exc:
+            self.bot.logger.error("Failed to generate chart", exc_info=exc)
 
     def log_command(self, ctx: commands.Context["Bot"]) -> None:
         self.bot.logger.info(

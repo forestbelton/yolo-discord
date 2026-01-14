@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from aiosqlite import connect, Connection, Row
 from datetime import datetime
-from json import dumps
+from json import dumps, loads
 from moneyed import Money
 
 from yolo_discord.dto import (
@@ -11,8 +11,9 @@ from yolo_discord.dto import (
     OrderInsert,
     OwnedSecurity,
     PortfolioEntry,
+    PortfolioSnapshot,
 )
-from yolo_discord.util import from_cents, PortfolioEntryEncoder
+from yolo_discord.util import from_cents, PortfolioEntryDecoder, PortfolioEntryEncoder
 
 
 class Database(ABC):
@@ -46,6 +47,11 @@ class Database(ABC):
     async def create_portfolio_snapshot(
         self, user_id: str, portfolio: list[PortfolioEntry]
     ) -> None: ...
+
+    @abstractmethod
+    async def get_user_portfolio_snapshots(
+        self, user_id: str
+    ) -> list[PortfolioSnapshot]: ...
 
     @abstractmethod
     async def get_all_users(self) -> list[str]: ...
@@ -273,6 +279,26 @@ class DatabaseImpl(Database):
             "SELECT user_id FROM discord_users"
         )
         return [row["user_id"] for row in rows]
+
+    async def get_user_portfolio_snapshots(
+        self, user_id: str
+    ) -> list[PortfolioSnapshot]:
+        rows = await self.connection.execute_fetchall(
+            """
+            SELECT created_at, data
+            FROM portfolio_snapshots
+            WHERE user_id = :user_id
+            ORDER BY created_at ASC
+            """,
+            {"user_id": user_id},
+        )
+        return [
+            PortfolioSnapshot(
+                created_at=datetime.strptime(row["created_at"], "%Y-%m-%d"),
+                entries=loads(row["data"], cls=PortfolioEntryDecoder),
+            )
+            for row in rows
+        ]
 
     async def commit(self) -> None:
         await self.connection.commit()

@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import datetime
 from logging import Logger
 from moneyed import Money
 from yolo_discord.dto import (
@@ -7,6 +8,7 @@ from yolo_discord.dto import (
     OrderInsert,
     OrderType,
     PortfolioEntry,
+    PortfolioSnapshot,
     TransactionInsert,
     TransactionType,
 )
@@ -44,6 +46,11 @@ class YoloService(ABC):
 
     @abstractmethod
     async def add_allowance(self, user_id: str) -> None: ...
+
+    @abstractmethod
+    async def get_portfolio_snapshots(
+        self, user_id: str
+    ) -> list[PortfolioSnapshot]: ...
 
 
 class NotEnoughMoneyException(Exception):
@@ -245,3 +252,14 @@ class YoloServiceImpl(YoloService):
                 comment="Weekly allowance",
             )
         )
+
+    async def get_portfolio_snapshots(self, user_id: str) -> list[PortfolioSnapshot]:
+        latest_portfolio = await self.get_portfolio(user_id)
+        portfolio_snapshots = await self.database.get_user_portfolio_snapshots(user_id)
+        portfolio_snapshots.append(
+            PortfolioSnapshot(
+                created_at=datetime.now(),
+                entries=latest_portfolio,
+            )
+        )
+        return portfolio_snapshots
