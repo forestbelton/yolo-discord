@@ -52,6 +52,11 @@ class YoloService(ABC):
         self, user_id: str
     ) -> list[PortfolioSnapshot]: ...
 
+    @abstractmethod
+    async def send_gift(
+        self, from_user_id: str, to_user_id: str, amount: Money
+    ) -> None: ...
+
 
 class NotEnoughMoneyException(Exception):
     available_funds: Money
@@ -263,3 +268,33 @@ class YoloServiceImpl(YoloService):
             )
         )
         return portfolio_snapshots
+
+    async def send_gift(
+        self, from_user_id: str, to_user_id: str, amount: Money
+    ) -> None:
+        try:
+            from_user_balance = await self.get_balance(from_user_id)
+            if from_user_balance < amount:
+                raise NotEnoughMoneyException(
+                    available_funds=from_user_balance, required_funds=amount
+                )
+            await self.database.create_transaction(
+                TransactionInsert(
+                    user_id=from_user_id,
+                    type=TransactionType.DEBIT,
+                    amount=amount,
+                    comment=f"Gift to @{to_user_id}",
+                )
+            )
+            await self.database.create_transaction(
+                TransactionInsert(
+                    user_id=to_user_id,
+                    type=TransactionType.CREDIT,
+                    amount=amount,
+                    comment=f"Gift from @{from_user_id}",
+                )
+            )
+            await self.database.commit()
+        except Exception:
+            await self.database.rollback()
+            raise

@@ -1,7 +1,9 @@
 import discord
+import re
 from datetime import datetime, time
 from discord.ext import commands, tasks
 from logging import Logger, getLogger
+from moneyed import Money
 from tempfile import NamedTemporaryFile
 from yolo_discord.chart import render_portfolio_balance_chart
 from yolo_discord.db import DatabaseImpl
@@ -19,6 +21,9 @@ from yolo_discord.util import (
     calculate_return_rate,
     sum_money,
 )
+
+USER_ID_RE = re.compile(r"^<@(\d+)>$")
+MONEY_RE = re.compile(r"^\$(\d+)(\.\d{1,2})?$")
 
 
 class CommandsCog(commands.Cog):
@@ -170,6 +175,32 @@ class CommandsCog(commands.Cog):
                 )
         except Exception as exc:
             self.bot.logger.error("Failed to generate chart", exc_info=exc)
+
+    @commands.command()
+    async def gift(self, ctx: commands.Context["Bot"]) -> None:
+        self.log_command(ctx)
+        args = ctx.message.content.split(" ")
+        if len(args) != 3:
+            await ctx.reply("Incorrect usage. Should be !gift {user} {amount}")
+            return
+        from_user_id = str(ctx.author.id)
+        match = USER_ID_RE.match(args[1])
+        if match is None:
+            await ctx.reply("Incorrect usage. Should be !gift {user} {amount}")
+            return
+        to_user_id = match.group(1)
+        match = MONEY_RE.match(args[2])
+        if match is None:
+            await ctx.reply("Incorrect usage. Should be !gift {user} {amount}")
+            return
+        amount = Money(match.group(0)[1:], "USD")
+        try:
+            await self.bot.yolo_service.send_gift(from_user_id, to_user_id, amount)
+            await ctx.reply(f"You sent {amount} to <@{to_user_id}>. How nice of you!")
+        except NotEnoughMoneyException as exc:
+            await ctx.reply(
+                f"You only have {exc.available_funds} of the required {exc.required_funds}."
+            )
 
     def log_command(self, ctx: commands.Context["Bot"]) -> None:
         self.bot.logger.info(
