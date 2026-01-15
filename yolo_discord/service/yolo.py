@@ -13,7 +13,7 @@ from yolo_discord.dto import (
     TransactionType,
 )
 from yolo_discord.config import get_config
-from yolo_discord.db import Database
+from yolo_discord.db import Database, Tx
 from yolo_discord.service.security import SecurityService
 from yolo_discord.util import calculate_return_rate
 
@@ -43,9 +43,6 @@ class YoloService(ABC):
 
     @abstractmethod
     async def take_portfolio_snapshots(self) -> None: ...
-
-    @abstractmethod
-    async def add_allowance(self, user_id: str) -> None: ...
 
     @abstractmethod
     async def get_portfolio_snapshots(
@@ -82,7 +79,10 @@ class YoloServiceImpl(YoloService):
     security_service: SecurityService
 
     def __init__(
-        self, logger: Logger, database: Database, security_service: SecurityService
+        self,
+        logger: Logger,
+        database: Database,
+        security_service: SecurityService,
     ) -> None:
         self.logger = logger
         self.database = database
@@ -90,12 +90,13 @@ class YoloServiceImpl(YoloService):
 
     async def get_balance(self, user_id: str) -> Money:
         await self.create_user(user_id)
-        return await self.database.get_user_balance(user_id)
+        async with self.database.tx() as database:
+            return await database.get_user_balance(user_id)
 
     async def buy(self, request: CreateOrderRequest) -> Order:
         await self.create_user(request.user_id)
-        try:
-            balance = await self.database.get_user_balance(request.user_id)
+        async with self.database.tx() as tx:
+            balance = await tx.get_user_balance(request.user_id)
             security_price = await self.security_service.get_security_price(
                 request.security_name
             )
@@ -109,7 +110,7 @@ class YoloServiceImpl(YoloService):
                     available_funds=balance,
                     required_funds=debit_amount,
                 )
-            debit = await self.database.create_transaction(
+            debit = await tx.create_transaction(
                 TransactionInsert(
                     user_id=request.user_id,
                     type=TransactionType.DEBIT,
@@ -117,7 +118,7 @@ class YoloServiceImpl(YoloService):
                     comment=f"Buy for {request.quantity} of ${request.security_name}",
                 )
             )
-            order = await self.database.create_order(
+            order = await tx.create_order(
                 OrderInsert(
                     user_id=request.user_id,
                     transaction_id=debit.id,
@@ -127,16 +128,12 @@ class YoloServiceImpl(YoloService):
                     quantity=request.quantity,
                 )
             )
-            await self.database.commit()
             return order
-        except:
-            await self.database.rollback()
-            raise
 
     async def sell(self, request: CreateOrderRequest) -> Order:
         await self.create_user(request.user_id)
-        try:
-            quantity = await self.database.get_user_security_quantity(
+        async with self.database.tx() as tx:
+            quantity = await tx.get_user_security_quantity(
                 request.user_id, request.security_name
             )
             if quantity < request.quantity:
@@ -149,7 +146,7 @@ class YoloServiceImpl(YoloService):
                     f"Could not fetch price of security ${request.security_name}"
                 )
             credit_amount = security_price * request.quantity
-            credit = await self.database.create_transaction(
+            credit = await tx.create_transaction(
                 TransactionInsert(
                     user_id=request.user_id,
                     type=TransactionType.CREDIT,
@@ -157,7 +154,7 @@ class YoloServiceImpl(YoloService):
                     comment=f"Sell for {request.quantity} of ${request.security_name}",
                 )
             )
-            order = await self.database.create_order(
+            order = await tx.create_order(
                 OrderInsert(
                     user_id=request.user_id,
                     transaction_id=credit.id,
@@ -167,22 +164,18 @@ class YoloServiceImpl(YoloService):
                     quantity=request.quantity,
                 )
             )
-            await self.database.commit()
             return order
-        except:
-            await self.database.rollback()
-            raise
 
     async def create_user(self, user_id: str):
-        try:
-            is_new_user = await self.database.create_user(user_id)
+        async with self.database.tx() as tx:
+            is_new_user = await tx.create_user(user_id)
             if is_new_user:
                 config = get_config()
                 self.logger.info(
                     f"New user <@{user_id}> created, granting starting balance of {config.starting_balance}"
                 )
-                await self.database.create_allowance(user_id)
-                await self.database.create_transaction(
+                await tx.create_allowance(user_id)
+                await tx.create_transaction(
                     TransactionInsert(
                         user_id=user_id,
                         type=TransactionType.CREDIT,
@@ -190,18 +183,17 @@ class YoloServiceImpl(YoloService):
                         comment="Initial credit",
                     )
                 )
-                await self.database.commit()
-        except Exception as exc:
-            self.logger.error("Could not create user", exc_info=exc)
-            await self.database.rollback()
-            raise
 
     async def get_portfolio(
-        self, user_id: str, create_user: bool = True
+        self, user_id: str, create_user: bool = True, tx: Tx | None = None
     ) -> list[PortfolioEntry]:
         if create_user:
             await self.create_user(user_id)
-        owned_securities = await self.database.get_owned_securities(user_id)
+        if tx is not None:
+            owned_securities = await tx.get_owned_securities(user_id)
+        else:
+            async with self.database.tx() as tx:
+                owned_securities = await tx.get_owned_securities(user_id)
         current_prices = await self.security_service.get_security_prices(
             [security.name for security in owned_securities]
         )
@@ -223,44 +215,32 @@ class YoloServiceImpl(YoloService):
 
     async def update_allowances(self) -> None:
         self.logger.info("Granting user allowances")
-        try:
-            user_ids = await self.database.get_eligible_users_for_allowance()
+        config = get_config()
+        async with self.database.tx() as tx:
+            user_ids = await tx.get_eligible_users_for_allowance()
             for user_id in user_ids:
-                await self.add_allowance(user_id)
-            await self.database.commit()
-        except Exception as exc:
-            self.logger.error("Could not process allowances", exc_info=exc)
-            await self.database.rollback()
-            raise
+                await tx.create_allowance(user_id)
+                await tx.create_transaction(
+                    TransactionInsert(
+                        user_id=user_id,
+                        type=TransactionType.CREDIT,
+                        amount=config.weekly_allowance,
+                        comment="Weekly allowance",
+                    )
+                )
 
     async def take_portfolio_snapshots(self) -> None:
         self.logger.info("Taking portfolio snapshots")
-        try:
-            user_ids = await self.database.get_all_users()
+        async with self.database.tx() as tx:
+            user_ids = await tx.get_all_users()
             for user_id in user_ids:
-                portfolio = await self.get_portfolio(user_id, create_user=False)
-                await self.database.create_portfolio_snapshot(user_id, portfolio)
-            await self.database.commit()
-        except Exception as exc:
-            self.logger.error("Could not process portfolio snapshots", exc_info=exc)
-            await self.database.rollback()
-            raise
-
-    async def add_allowance(self, user_id: str) -> None:
-        config = get_config()
-        await self.database.create_allowance(user_id)
-        await self.database.create_transaction(
-            TransactionInsert(
-                user_id=user_id,
-                type=TransactionType.CREDIT,
-                amount=config.weekly_allowance,
-                comment="Weekly allowance",
-            )
-        )
+                portfolio = await self.get_portfolio(user_id, create_user=False, tx=tx)
+                await tx.create_portfolio_snapshot(user_id, portfolio)
 
     async def get_portfolio_snapshots(self, user_id: str) -> list[PortfolioSnapshot]:
         latest_portfolio = await self.get_portfolio(user_id)
-        portfolio_snapshots = await self.database.get_user_portfolio_snapshots(user_id)
+        async with self.database.tx() as tx:
+            portfolio_snapshots = await tx.get_user_portfolio_snapshots(user_id)
         portfolio_snapshots.append(
             PortfolioSnapshot(
                 created_at=datetime.now(),
@@ -272,13 +252,17 @@ class YoloServiceImpl(YoloService):
     async def send_gift(
         self, from_user_id: str, to_user_id: str, amount: Money
     ) -> None:
-        try:
-            from_user_balance = await self.get_balance(from_user_id)
+        # Ensure both users exist before starting transaction
+        await self.create_user(from_user_id)
+        await self.create_user(to_user_id)
+
+        async with self.database.tx() as tx:
+            from_user_balance = await tx.get_user_balance(from_user_id)
             if from_user_balance < amount:
                 raise NotEnoughMoneyException(
                     available_funds=from_user_balance, required_funds=amount
                 )
-            await self.database.create_transaction(
+            await tx.create_transaction(
                 TransactionInsert(
                     user_id=from_user_id,
                     type=TransactionType.DEBIT,
@@ -286,7 +270,7 @@ class YoloServiceImpl(YoloService):
                     comment=f"Gift to @{to_user_id}",
                 )
             )
-            await self.database.create_transaction(
+            await tx.create_transaction(
                 TransactionInsert(
                     user_id=to_user_id,
                     type=TransactionType.CREDIT,
@@ -294,7 +278,3 @@ class YoloServiceImpl(YoloService):
                     comment=f"Gift from @{from_user_id}",
                 )
             )
-            await self.database.commit()
-        except Exception:
-            await self.database.rollback()
-            raise

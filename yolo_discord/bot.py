@@ -225,11 +225,10 @@ class Bot(commands.Bot):
         self.logger = logger
 
     async def setup_hook(self) -> None:
-        database = await DatabaseImpl.create("yolo.sqlite3")
         self.security_service = SecurityServiceImpl(self.finnhub_api_key)
         self.yolo_service = YoloServiceImpl(
             logger=self.logger,
-            database=database,
+            database=await DatabaseImpl.create("yolo.sqlite3"),
             security_service=self.security_service,
         )
         await self.add_cog(CommandsCog(self))

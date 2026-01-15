@@ -1,8 +1,11 @@
+import asyncio
 from abc import ABC, abstractmethod
 from aiosqlite import connect, Connection, Row
+from contextlib import asynccontextmanager
 from datetime import datetime
 from json import dumps, loads
 from moneyed import Money
+from typing import AsyncIterator
 
 from yolo_discord.dto import (
     Transaction,
@@ -16,7 +19,7 @@ from yolo_discord.dto import (
 from yolo_discord.util import from_cents, PortfolioEntryDecoder, PortfolioEntryEncoder
 
 
-class Database(ABC):
+class Tx(ABC):
     @abstractmethod
     async def create_user(self, user_id: str) -> bool: ...
 
@@ -56,23 +59,45 @@ class Database(ABC):
     @abstractmethod
     async def get_all_users(self) -> list[str]: ...
 
-    @abstractmethod
-    async def commit(self) -> None: ...
 
+class Database(ABC):
     @abstractmethod
-    async def rollback(self) -> None: ...
+    @asynccontextmanager
+    async def tx(self) -> AsyncIterator[Tx]:
+        raise NotImplementedError()
+        yield
 
 
 class DatabaseImpl(Database):
+    def __init__(self, connection: Connection) -> None:
+        self.connection = connection
+        self.connection.row_factory = Row
+        self.transaction_lock = asyncio.Lock()
+
+    @staticmethod
+    async def create(url: str) -> "DatabaseImpl":
+        return DatabaseImpl(await connect(url))
+
+    @asynccontextmanager
+    async def tx(self) -> AsyncIterator[Tx]:
+        await self.transaction_lock.acquire()
+        try:
+            await self.connection.execute("BEGIN IMMEDIATE")
+            yield TxImpl(self.connection)
+            await self.connection.commit()
+        except:
+            await self.connection.rollback()
+            raise
+        finally:
+            self.transaction_lock.release()
+
+
+class TxImpl(Tx):
     connection: Connection
 
     def __init__(self, connection: Connection) -> None:
         self.connection = connection
         self.connection.row_factory = Row
-
-    @staticmethod
-    async def create(url: str) -> "DatabaseImpl":
-        return DatabaseImpl(await connect(url))
 
     async def create_user(self, user_id: str) -> bool:
         cursor = await self.connection.execute(
@@ -299,9 +324,3 @@ class DatabaseImpl(Database):
             )
             for row in rows
         ]
-
-    async def commit(self) -> None:
-        await self.connection.commit()
-
-    async def rollback(self) -> None:
-        await self.connection.rollback()
