@@ -56,7 +56,7 @@ async def fetch_security_price(
         if resp.status == 404:
             return None
         elif resp.status != 200:
-            text = resp.text()
+            text = await resp.text()
             raise Exception(
                 f"API call to finnhub failed with status {resp.status} and response: {text}"
             )
