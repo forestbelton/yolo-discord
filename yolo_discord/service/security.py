@@ -1,6 +1,7 @@
 import abc
 import aiohttp
 from cachebox import TTLCache
+from decimal import Decimal, ROUND_DOWN
 from moneyed import Money
 from typing import Optional
 
@@ -61,5 +62,8 @@ async def fetch_security_price(
                 f"API call to finnhub failed with status {resp.status} and response: {text}"
             )
         response = await resp.json()
-        price = response["c"]
-        return Money(price, "USD")
+        price = Money(response["c"], "USD")
+        return Money(
+            price.amount.quantize(Decimal("0.01"), rounding=ROUND_DOWN),
+            price.currency,
+        )
